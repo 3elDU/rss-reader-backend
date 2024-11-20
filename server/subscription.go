@@ -107,6 +107,7 @@ func (s *Server) subscribe(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("/subscriptions/%v", subscription.ID),
 		)
 		w.WriteHeader(http.StatusFound)
+		return
 	}
 
 	parser := gofeed.NewParser()
@@ -117,6 +118,7 @@ func (s *Server) subscribe(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	subscription.Type = feed.FeedType
 	subscription.Title = feed.Title
 	subscription.Description = feed.Description
 

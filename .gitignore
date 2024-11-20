@@ -1,3 +1,7 @@
 database.sqlite
+database-debug.sqlite
+
+# Debug binary
+__debug_bin*
 # The compiled binary
 rss-reader-backend

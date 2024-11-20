@@ -19,8 +19,31 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+var (
+	createToken = flag.Bool(
+		"createtoken",
+		false,
+		"Create a new authentication token, output it and exit.",
+	)
+	listenAddr = flag.String(
+		"listen",
+		"[::1]:8080",
+		"Address to listen on, with port.",
+	)
+	database = flag.String(
+		"db",
+		"database.sqlite",
+		"Path to the database file to use.",
+	)
+	validFor = flag.Duration(
+		"validfor",
+		time.Duration(0),
+		"Used with 'createToken'. The duration for which the token will be valid. The default is no expiration.",
+	)
+)
+
 func runMigrations() {
-	db, err := sql.Open("sqlite", "database.sqlite")
+	db, err := sql.Open("sqlite", *database)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
@@ -70,19 +93,14 @@ func createAuthToken(db *sqlx.DB, validFor time.Duration) {
 }
 
 func main() {
+	flag.Parse()
+
 	runMigrations()
 
 	// Instantiate the database
-	db := sqlx.MustConnect("sqlite", "database.sqlite")
+	db := sqlx.MustConnect("sqlite", *database)
+	log.Printf("Connected to the database in '%v'", *database)
 	defer db.Close()
-
-	createToken := flag.Bool("createtoken", false, "Create a new authentication token, output it and exit.")
-
-	validFor := flag.Duration("validfor", time.Duration(0), "Used with 'createToken'. The duration for which the token will be valid. The default is no expiration.")
-
-	listenAddr := flag.String("listen", "127.0.0.1:8080", "Address to listen on, with port.")
-
-	flag.Parse()
 
 	if *createToken {
 		createAuthToken(db, *validFor)

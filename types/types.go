@@ -29,7 +29,7 @@ func (s *Subscription) Fetch(db *sqlx.DB) error {
 func (s Subscription) ExistsInDB(db *sqlx.DB) (exists bool, err error) {
 	res, err := db.Query(`SELECT EXISTS(
 			SELECT 1 FROM subscriptions WHERE subscriptions.url = ?
-	)`)
+	)`, s.URL)
 	if err != nil {
 		return false, err
 	}
@@ -39,6 +39,7 @@ func (s Subscription) ExistsInDB(db *sqlx.DB) (exists bool, err error) {
 	}
 
 	err = res.Scan(&exists)
+	res.Close()
 	return
 }
 
