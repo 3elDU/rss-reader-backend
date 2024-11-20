@@ -37,4 +37,11 @@ func (s *Server) registerRoutes() {
 	s.Handle("GET /subscriptions/{id}/articles",
 		withRequestValidation(s.db, s.getArticles),
 	)
+
+	s.Handle("GET /articles/{id}/thumbnail",
+		withRequestValidation(s.db, s.getArticleThumbnail),
+	)
+	s.Handle("GET /articles/{id}",
+		withRequestValidation(s.db, s.getSingleArticle),
+	)
 }

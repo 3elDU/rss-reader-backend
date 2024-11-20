@@ -26,6 +26,7 @@ func withRequestValidation(db *sqlx.DB, next http.HandlerFunc) http.HandlerFunc 
 				},
 			))
 			next(w, request)
+			return
 		}
 
 		tokenHeader := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
