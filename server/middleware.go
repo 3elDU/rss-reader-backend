@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/3elDU/rss-reader-backend/auth"
 	"github.com/jmoiron/sqlx"
@@ -14,6 +15,19 @@ import (
 
 func withRequestValidation(db *sqlx.DB, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if auth.NoAuth {
+			request := r.WithContext(context.WithValue(
+				r.Context(),
+				auth.TokenContextKey,
+				auth.Token{
+					ID:        0,
+					Token:     "dummy",
+					CreatedAt: time.Now(),
+				},
+			))
+			next(w, request)
+		}
+
 		tokenHeader := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if tokenHeader == "" {
 			log.Printf("authentication: unauthorized")

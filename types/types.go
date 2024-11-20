@@ -2,6 +2,7 @@ package types
 
 import (
 	"database/sql"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -44,7 +45,7 @@ func (s Subscription) ExistsInDB(db *sqlx.DB) (exists bool, err error) {
 }
 
 func (s *Subscription) Articles(db *sqlx.DB) (articles []Article, err error) {
-	rows, err := db.Queryx(`SELECT id, new, title, description, thumbnail
+	rows, err := db.Queryx(`SELECT id, url, new, title, description, thumbnail, created
 		FROM articles
 		WHERE articles.subscription_id = ?`,
 		s.ID,
@@ -55,9 +56,13 @@ func (s *Subscription) Articles(db *sqlx.DB) (articles []Article, err error) {
 
 	for rows.Next() {
 		article := Article{Subscription: s}
+
 		if err := rows.StructScan(&article); err != nil {
 			return nil, err
 		}
+
+		article.CreatedParsed, _ = time.Parse(time.DateTime, article.Created)
+
 		articles = append(articles, article)
 	}
 
@@ -67,10 +72,15 @@ func (s *Subscription) Articles(db *sqlx.DB) (articles []Article, err error) {
 type Article struct {
 	ID           int           `json:"id" db:"id"`
 	Subscription *Subscription `json:"-"`
-	New          bool          `json:"new" db:"new"`
-	Title        string        `json:"title" db:"title"`
-	Description  string        `json:"description" db:"description"`
-	Thumbnail    []byte        `json:"-"`
+
+	URL         string `json:"url" db:"url"`
+	New         bool   `json:"new" db:"new"`
+	Title       string `json:"title" db:"title"`
+	Description string `json:"description" db:"description"`
+	Thumbnail   []byte `json:"-"`
+
+	Created       string    `json:"-" db:"created"`
+	CreatedParsed time.Time `json:"created"`
 }
 
 func (article Article) AddToReadLater(db *sqlx.DB) (sql.Result, error) {

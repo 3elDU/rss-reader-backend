@@ -17,12 +17,16 @@ CREATE TABLE IF NOT EXISTS articles (
   subscription_id INTEGER NOT NULL,
   -- whether the article was shown to the user
   new INT,
+  -- URL to the article
+  url TEXT NOT NULL,
   -- title of the article
   title TEXT NOT NULL,
   -- description of the article
   description TEXT,
   -- thumbnail
   thumbnail BLOB,
+  -- date when the article was written
+  created TEXT NOT NULL,
   FOREIGN KEY(subscription_id) REFERENCES subscriptions(id)
 );
 CREATE TABLE IF NOT EXISTS readlater (

@@ -12,7 +12,8 @@
       "program": "${workspaceFolder}",
       "args": [
         "-db",
-        "database-debug.sqlite"
+        "database-debug.sqlite",
+        "-noauth"
       ],
     }
   ]

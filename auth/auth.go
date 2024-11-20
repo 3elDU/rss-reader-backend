@@ -7,6 +7,11 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+var (
+	// Disable authentication entirely, allowing all requests
+	NoAuth = false
+)
+
 type ContextKey string
 
 const TokenContextKey ContextKey = "token"

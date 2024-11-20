@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/3elDU/rss-reader-backend/auth"
 	"github.com/3elDU/rss-reader-backend/server"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite"
@@ -93,13 +94,25 @@ func createAuthToken(db *sqlx.DB, validFor time.Duration) {
 }
 
 func main() {
+	flag.BoolVar(
+		&auth.NoAuth,
+		"noauth",
+		false,
+		"Disable authentication entirely. Useful for debugging.",
+	)
+
 	flag.Parse()
+	if auth.NoAuth {
+		log.Printf("*** RUNNING WITH AUTHENTICATION DISABLED ***")
+	}
 
 	runMigrations()
 
 	// Instantiate the database
 	db := sqlx.MustConnect("sqlite", *database)
-	log.Printf("Connected to the database in '%v'", *database)
+	if !*createToken {
+		log.Printf("Connected to the database in '%v'", *database)
+	}
 	defer db.Close()
 
 	if *createToken {

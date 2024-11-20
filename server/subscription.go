@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/3elDU/rss-reader-backend/types"
 	"github.com/jmoiron/sqlx"
@@ -170,9 +171,9 @@ func populateArticles(
 	}
 
 	stmt, err := tx.Prepare(fmt.Sprintf(`INSERT INTO articles 
-		(subscription_id, new, title, description, thumbnail)
+		(subscription_id, url, new, title, description, thumbnail, created)
 		VALUES 
-		(%v, TRUE, $1, $2, $3)`,
+		(%v, $1, TRUE, $2, $3, $4, $5)`,
 		subscription.ID,
 	))
 	if err != nil {
@@ -184,14 +185,19 @@ func populateArticles(
 		var thumbnail []byte
 		if article.Image != nil {
 			thumbnail, err = fetchImage(article.Image.URL)
+			// log the error, but continue anyway
 			if err != nil {
-				tx.Rollback()
-				return err
+				log.Printf("error when fetching article image: %v", err)
 			}
 		}
 
+		published := article.PublishedParsed.UTC().Format(time.DateTime)
+
 		if _, err := stmt.Exec(
-			article.Title, article.Description, thumbnail,
+			article.Link,
+			article.Title, article.Description,
+			thumbnail,
+			published,
 		); err != nil {
 			tx.Rollback()
 			return err
