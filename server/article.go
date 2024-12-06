@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/3elDU/rss-reader-backend/types"
+	"github.com/3elDU/rss-reader-backend/feed"
 )
 
 func (s *Server) getArticles(w http.ResponseWriter, r *http.Request) {
@@ -22,8 +22,7 @@ func (s *Server) getArticles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	subscription := types.Subscription{ID: id}
-	err = subscription.Fetch(s.db)
+	sub, err := feed.FindByID(s.db, id)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		w.WriteHeader(http.StatusNotFound)
@@ -34,7 +33,7 @@ func (s *Server) getArticles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	articles, err := subscription.Articles(s.db)
+	articles, err := sub.Articles(s.db)
 	if err != nil {
 		log.Printf("failed to fetch articles from db: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -54,8 +53,7 @@ func (s *Server) getArticleThumbnail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	article := types.Article{ID: id}
-	err = article.Fetch(s.db)
+	article, err := feed.FindArticleByID(s.db, id)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		w.WriteHeader(http.StatusNotFound)
@@ -81,8 +79,7 @@ func (s *Server) getSingleArticle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	article := types.Article{ID: id}
-	err = article.Fetch(s.db)
+	article, err := feed.FindArticleByID(s.db, id)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		w.WriteHeader(http.StatusNotFound)

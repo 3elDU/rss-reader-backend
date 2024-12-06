@@ -1,4 +1,4 @@
-package server
+package util
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 )
 
 // Fetch the website's favicon using google favicon cache, returns the image blob
-func fetchFavicon(website string) ([]byte, error) {
+func FetchFavicon(website string) ([]byte, error) {
 	url := fmt.Sprintf(
 		"https://www.google.com/s2/favicons?sz=64&domain=%v",
 		urllib.QueryEscape(website),
@@ -23,7 +23,7 @@ func fetchFavicon(website string) ([]byte, error) {
 	return io.ReadAll(res.Body)
 }
 
-func fetchImage(img string) ([]byte, error) {
+func FetchImage(img string) ([]byte, error) {
 	res, err := http.DefaultClient.Get(img)
 	if err != nil {
 		return nil, err
@@ -33,7 +33,7 @@ func fetchImage(img string) ([]byte, error) {
 }
 
 // Replaces scheme to 'https', and strips ?query and #fragment
-func simplifyURL(orig string) string {
+func SimplifyURL(orig string) string {
 	url, _ := urllib.Parse(orig)
 
 	url.Scheme = "https"

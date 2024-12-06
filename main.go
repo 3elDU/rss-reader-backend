@@ -1,17 +1,16 @@
 package main
 
 import (
-	"crypto/rand"
 	"database/sql"
-	"encoding/base64"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"time"
 
-	"github.com/3elDU/rss-reader-backend/auth"
+	"github.com/3elDU/rss-reader-backend/refresh"
 	"github.com/3elDU/rss-reader-backend/server"
+	"github.com/3elDU/rss-reader-backend/token"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite"
 	"github.com/jmoiron/sqlx"
@@ -41,6 +40,11 @@ var (
 		time.Duration(0),
 		"Used with 'createToken'. The duration for which the token will be valid. The default is no expiration.",
 	)
+	refreshFreq = flag.Duration(
+		"refresh",
+		time.Minute*15,
+		"Frequency with which feeds will be updated",
+	)
 )
 
 func runMigrations() {
@@ -69,40 +73,16 @@ func runMigrations() {
 	}
 }
 
-// Generate authentication token, add it to the database and print it
-func createAuthToken(db *sqlx.DB, validFor time.Duration) {
-	buf := make([]byte, 32)
-	if _, err := rand.Read(buf); err != nil {
-		panic(err)
-	}
-
-	token := base64.URLEncoding.EncodeToString(buf)
-
-	now := time.Now().UTC()
-	createdAt := now.Format(time.DateTime)
-	var validUntil interface{} = nil // The default is NULL
-	if validFor != 0 {
-		validUntil = now.Add(validFor).Format(time.DateTime)
-	}
-
-	db.MustExec(
-		"INSERT INTO auth_tokens (token, created_at, valid_until) VALUES ($1, $2, $3)",
-		token, createdAt, validUntil,
-	)
-
-	fmt.Println(token)
-}
-
 func main() {
 	flag.BoolVar(
-		&auth.NoAuth,
+		&server.NoAuth,
 		"noauth",
 		false,
 		"Disable authentication entirely. Useful for debugging.",
 	)
 
 	flag.Parse()
-	if auth.NoAuth {
+	if server.NoAuth && !*createToken {
 		log.Printf("*** RUNNING WITH AUTHENTICATION DISABLED ***")
 	}
 
@@ -116,12 +96,33 @@ func main() {
 	defer db.Close()
 
 	if *createToken {
-		createAuthToken(db, *validFor)
+		// If the duration is unset, make it nil
+		var d *time.Duration
+		if *validFor != 0 {
+			d = validFor
+		}
+
+		t := token.New(d)
+		if err := t.Write(db.DB); err != nil {
+			panic(err)
+		}
+		fmt.Println(t.Token)
+
 		return
 	}
 
 	log.Printf("Running the web server on %v", *listenAddr)
 
-	server := server.NewServer(db)
-	log.Fatal(http.ListenAndServe(*listenAddr, server))
+	task := refresh.NewTask(db, *refreshFreq)
+	server := server.NewServer(db, task)
+
+	go runServer(server)
+	task.Run()
+}
+
+func runServer(server *server.Server) {
+	err := http.ListenAndServe(*listenAddr, server)
+	if err != nil {
+		panic(err)
+	}
 }

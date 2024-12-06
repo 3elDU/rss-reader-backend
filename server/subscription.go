@@ -10,15 +10,12 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"time"
 
-	"github.com/3elDU/rss-reader-backend/types"
-	"github.com/jmoiron/sqlx"
-	"github.com/mmcdole/gofeed"
+	"github.com/3elDU/rss-reader-backend/feed"
 )
 
 func (s *Server) getSubscriptions(w http.ResponseWriter, r *http.Request) {
-	subscriptions := []types.Subscription{}
+	subscriptions := []feed.Feed{}
 
 	rows, err := s.db.Queryx("SELECT id, type, url, title, description FROM subscriptions")
 	if err != nil {
@@ -28,7 +25,7 @@ func (s *Server) getSubscriptions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for rows.Next() {
-		subscription := types.Subscription{}
+		subscription := feed.Feed{}
 		if err := rows.StructScan(&subscription); err != nil {
 			log.Printf("failed to scan subscription struct: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -51,15 +48,7 @@ func (s *Server) getSingleSubscription(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	subscription := types.Subscription{}
-
-	row := s.db.QueryRowx(`SELECT id, type, url, title, description
-		FROM subscriptions
-		WHERE subscriptions.id = $1`,
-		id,
-	)
-
-	err = row.StructScan(&subscription)
+	sub, err := feed.FindByID(s.db, id)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		w.WriteHeader(http.StatusNotFound)
@@ -71,138 +60,75 @@ func (s *Server) getSingleSubscription(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	encoded, _ := json.Marshal(subscription)
+	encoded, _ := json.Marshal(sub)
 	w.Write(encoded)
 }
 
-func (s *Server) subscribe(w http.ResponseWriter, r *http.Request) {
-	subscription := types.Subscription{}
+type SubscribeRequest struct {
+	URL string `json:"url" validate:"required,http_url"`
+}
 
-	err := json.NewDecoder(r.Body).Decode(&subscription)
+func (s *Server) subscribe(w http.ResponseWriter, r *http.Request) {
+	body := SubscribeRequest{}
+	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	if err := s.validate.Struct(&subscription); err != nil {
+	if err := s.validate.Struct(&body); err != nil {
 		log.Printf("validate error: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	subscription.URL = simplifyURL(subscription.URL)
+	url := body.URL
 
-	exists, err := subscription.ExistsInDB(s.db)
+	exists, err := feed.ExistsInDB(s.db, url)
 	if err != nil {
 		log.Printf(
 			"failed to check whether the subscription (%v) exists in db: %v",
-			subscription.URL,
+			url,
 			err,
 		)
 	}
 
 	// Return early if the subscription already exists in the database
 	if exists {
+		f, err := feed.FindByURL(s.db, url)
+		if err != nil {
+			log.Printf("failed to fetch existing feed from db: %v", err)
+		}
+
 		w.Header().Set(
 			"Location",
-			fmt.Sprintf("/subscriptions/%v", subscription.ID),
+			fmt.Sprintf("/subscriptions/%v", f.ID),
 		)
 		w.WriteHeader(http.StatusFound)
 		return
 	}
 
-	parser := gofeed.NewParser()
-
-	feed, err := parser.ParseURL(subscription.URL)
+	sub, articles, err := feed.FetchRemote(url)
 	if err != nil {
-		log.Printf("feed parse error: %v", err)
+		log.Printf("failed to fetch remote feed: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	subscription.Type = feed.FeedType
-	subscription.Title = feed.Title
-	subscription.Description = feed.Description
 
-	favicon, _ := fetchFavicon(subscription.URL)
-	subscription.Thumbnail = favicon
-
-	const query = `INSERT INTO subscriptions
-		(type, url, title, description, thumbnail)
-		VALUES
-		(:type, :url, :title, :description, :thumbnail)`
-
-	res, err := s.db.NamedExec(query, subscription)
-	if err != nil {
+	if err := sub.Write(s.db); err != nil {
 		log.Printf("failed to insert into db: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	// Set row ID in the subscription stuct
-	id, err := res.LastInsertId()
-	if err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	subscription.ID = int(id)
-
-	if err := populateArticles(s.db, subscription, feed.Items); err != nil {
+	if err := sub.BulkAddArticles(s.db, articles); err != nil {
 		log.Printf("failed to populate articles in db: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	body, _ := json.Marshal(subscription)
+	j, _ := json.Marshal(sub)
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	w.Write(body)
-}
-
-// Adds articles from the feed to the database
-func populateArticles(
-	db *sqlx.DB,
-	subscription types.Subscription,
-	items []*gofeed.Item,
-) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-
-	stmt, err := tx.Prepare(fmt.Sprintf(`INSERT INTO articles 
-		(subscription_id, url, new, title, description, thumbnail, created)
-		VALUES 
-		(%v, $1, TRUE, $2, $3, $4, $5)`,
-		subscription.ID,
-	))
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	for _, article := range items {
-		var thumbnail []byte
-		if article.Image != nil {
-			thumbnail, err = fetchImage(article.Image.URL)
-			// log the error, but continue anyway
-			if err != nil {
-				log.Printf("error when fetching article image: %v", err)
-			}
-		}
-
-		published := article.PublishedParsed.UTC().Format(time.DateTime)
-
-		if _, err := stmt.Exec(
-			article.Link,
-			article.Title, article.Description,
-			thumbnail,
-			published,
-		); err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
-
-	return tx.Commit()
+	w.Write(j)
 }

@@ -3,6 +3,7 @@ package server
 import (
 	"net/http"
 
+	"github.com/3elDU/rss-reader-backend/refresh"
 	"github.com/go-playground/validator/v10"
 	"github.com/jmoiron/sqlx"
 )
@@ -12,13 +13,16 @@ type Server struct {
 
 	db       *sqlx.DB
 	validate *validator.Validate
+
+	r *refresh.Task
 }
 
-func NewServer(db *sqlx.DB) *Server {
+func NewServer(db *sqlx.DB, refresher *refresh.Task) *Server {
 	s := &Server{
 		ServeMux: http.NewServeMux(),
 		db:       db,
 		validate: validator.New(),
+		r:        refresher,
 	}
 	s.registerRoutes()
 
@@ -43,5 +47,9 @@ func (s *Server) registerRoutes() {
 	)
 	s.Handle("GET /articles/{id}",
 		withRequestValidation(s.db, s.getSingleArticle),
+	)
+
+	s.Handle("POST /refresh",
+		withRequestValidation(s.db, s.refresh),
 	)
 }

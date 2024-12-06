@@ -9,17 +9,22 @@ import (
 	"strings"
 	"time"
 
-	"github.com/3elDU/rss-reader-backend/auth"
+	"github.com/3elDU/rss-reader-backend/token"
 	"github.com/jmoiron/sqlx"
+)
+
+var (
+	// Disable authentication entirely, allowing all requests
+	NoAuth = false
 )
 
 func withRequestValidation(db *sqlx.DB, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if auth.NoAuth {
+		if NoAuth {
 			request := r.WithContext(context.WithValue(
 				r.Context(),
-				auth.TokenContextKey,
-				auth.Token{
+				token.TokenContextKey,
+				token.Token{
 					ID:        0,
 					Token:     "dummy",
 					CreatedAt: time.Now(),
@@ -36,7 +41,7 @@ func withRequestValidation(db *sqlx.DB, next http.HandlerFunc) http.HandlerFunc 
 			return
 		}
 
-		token, err := auth.FindTokenByString(db, tokenHeader)
+		t, err := token.FindByString(db.DB, tokenHeader)
 		if errors.Is(err, sql.ErrNoRows) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -47,17 +52,17 @@ func withRequestValidation(db *sqlx.DB, next http.HandlerFunc) http.HandlerFunc 
 		}
 
 		// Check if the token is still valid
-		if token.Expired() {
-			log.Printf("authentication: token expired on %v", token.ValidUntil)
-			db.MustExec("DELETE FROM auth_tokens WHERE auth_tokens.id = $1", token.ID)
+		if t.Expired() {
+			log.Printf("authentication: token expired on %v", t.ValidUntil)
+			db.MustExec("DELETE FROM auth_tokens WHERE auth_tokens.id = $1", t.ID)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
 		request := r.WithContext(context.WithValue(
 			r.Context(),
-			auth.TokenContextKey,
-			token,
+			token.TokenContextKey,
+			t,
 		))
 		next(w, request)
 	}
