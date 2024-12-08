@@ -19,6 +19,9 @@ type Token struct {
 }
 
 func (t Token) Expired() bool {
+	if t.ValidUntil == nil {
+		return false
+	}
 	return !t.ValidUntil.IsZero() && t.ValidUntil.Before(time.Now().UTC())
 }
 

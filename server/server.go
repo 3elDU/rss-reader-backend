@@ -30,6 +30,14 @@ func NewServer(db *sqlx.DB, refresher *refresh.Task) *Server {
 }
 
 func (s *Server) registerRoutes() {
+	// Route to test that the token is valid and that the backend is working properly
+	s.Handle("GET /ping",
+		withRequestValidation(s.db, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/plain")
+			w.Write([]byte("pong"))
+		}),
+	)
+
 	s.Handle("GET /subscriptions/{id}",
 		withRequestValidation(s.db, s.getSingleSubscription),
 	)
