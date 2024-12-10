@@ -8,8 +8,8 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   title TEXT NOT NULL,
   -- description of the feed
   description TEXT,
-  -- optional thumbnail (favicon or channel thumbnail)
-  thumbnail BLOB
+  -- thumbnail URL, null if there's no thumbnail
+  thumbnail TEXT
 );
 CREATE TABLE IF NOT EXISTS articles (
   id INTEGER PRIMARY KEY ASC,
@@ -23,8 +23,8 @@ CREATE TABLE IF NOT EXISTS articles (
   title TEXT NOT NULL,
   -- description of the article
   description TEXT,
-  -- thumbnail
-  thumbnail BLOB,
+  -- thumbnail URL, null if there's no thumbnail
+  thumbnail TEXT,
   -- date when the article was written
   created TEXT NOT NULL,
   FOREIGN KEY(subscription_id) REFERENCES subscriptions(id)

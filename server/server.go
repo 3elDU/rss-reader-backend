@@ -50,11 +50,12 @@ func (s *Server) registerRoutes() {
 		withRequestValidation(s.db, s.getArticles),
 	)
 
-	s.Handle("GET /articles/{id}/thumbnail",
-		withRequestValidation(s.db, s.getArticleThumbnail),
-	)
 	s.Handle("GET /articles/{id}",
 		withRequestValidation(s.db, s.getSingleArticle),
+	)
+
+	s.Handle("GET /unread",
+		withRequestValidation(s.db, s.getUnreadArticles),
 	)
 
 	s.Handle("POST /refresh",

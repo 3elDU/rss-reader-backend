@@ -10,14 +10,15 @@ import (
 type Article struct {
 	ID int `json:"id" db:"id"`
 
-	Subscription   *Feed `json:"-"`
+	Subscription   *Feed `json:"subscription,omitempty"`
 	SubscriptionID int   `json:"subscription_id" db:"subscription_id"`
 
 	URL         string `json:"url" db:"url"`
 	New         bool   `json:"new" db:"new"`
 	Title       string `json:"title" db:"title"`
 	Description string `json:"description" db:"description"`
-	Thumbnail   []byte `json:"-"`
+
+	Thumbnail *string `json:"thumbnail,omitempty"`
 
 	// Time string in [time.DateTime] format
 	Created       string    `json:"-" db:"created"`
@@ -40,6 +41,45 @@ func FindArticleByID(db *sqlx.DB, id int) (*Article, error) {
 	a.CreatedParsed, _ = time.Parse(time.DateTime, a.Created)
 
 	return a, nil
+}
+
+func UnreadArticles(db *sqlx.DB) ([]Article, error) {
+	rows, err := db.Queryx(`SELECT a.id, a.subscription_id, a.url, a.new, a.title, a.description, a.thumbnail, a.created, s.title
+		FROM articles a
+			INNER JOIN subscriptions s ON s.id = a.subscription_id
+			WHERE new = TRUE
+		ORDER BY a.created DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+
+	articles := []Article{}
+	for rows.Next() {
+		a := Article{
+			Subscription: &Feed{},
+		}
+		if err := rows.Scan(
+			&a.ID,
+			&a.SubscriptionID,
+			&a.URL,
+			&a.New,
+			&a.Title,
+			&a.Description,
+			&a.Thumbnail,
+			&a.Created,
+			&a.Subscription.Title,
+		); err != nil {
+			return nil, err
+		}
+
+		a.Subscription.ID = a.SubscriptionID
+		a.CreatedParsed, _ = time.Parse(time.DateTime, a.Created)
+
+		articles = append(articles, a)
+	}
+
+	return articles, nil
 }
 
 // Checks if the article with specified URL already exists in the database

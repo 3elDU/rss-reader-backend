@@ -106,7 +106,8 @@ func (s *Feed) Write(db *sqlx.DB) error {
 func (s *Feed) Articles(db *sqlx.DB) (articles []Article, err error) {
 	rows, err := db.Queryx(`SELECT id, url, new, title, description, thumbnail, created
 		FROM articles
-		WHERE articles.subscription_id = ?`,
+		WHERE articles.subscription_id = ?
+		ORDER BY articles.created DESC`,
 		s.ID,
 	)
 	if err != nil {

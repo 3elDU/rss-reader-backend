@@ -10,13 +10,9 @@ import (
 // Converts gofeed.Item into feed.Article.
 // Does not add the article to the database, so ID is always zero
 func NewArticleFromGofeed(a *gofeed.Item) (*Article, error) {
-	var thumb []byte
+	var thumb *string
 	if a.Image != nil {
-		var err error
-		thumb, err = util.FetchImage(a.Image.URL)
-		if err != nil {
-			return nil, err
-		}
+		thumb = &a.Image.URL
 	}
 
 	t := a.PublishedParsed.UTC()
