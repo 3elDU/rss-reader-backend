@@ -53,6 +53,15 @@ func (s *Server) registerRoutes() {
 	s.Handle("GET /articles/{id}",
 		withRequestValidation(s.db, s.getSingleArticle),
 	)
+	s.Handle("POST /articles/{id}/readlater",
+		withRequestValidation(s.db, s.addToReadLater),
+	)
+	s.Handle("DELETE /articles/{id}/readlater",
+		withRequestValidation(s.db, s.removeFromReadLater),
+	)
+	s.Handle("GET /readlater",
+		withRequestValidation(s.db, s.showReadLater),
+	)
 
 	s.Handle("GET /unread",
 		withRequestValidation(s.db, s.getUnreadArticles),

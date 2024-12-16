@@ -1,3 +1,2 @@
 DROP TABLE IF EXISTS subscriptions;
 DROP TABLE IF EXISTS articles;
-DROP TABLE IF EXISTS readlater;

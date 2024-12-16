@@ -1,16 +1,14 @@
 package feed
 
 import (
-	"time"
-
 	"github.com/jmoiron/sqlx"
 )
 
 type Feed struct {
 	ID          int    `json:"id" db:"id"`
-	Type        string `json:"type" db:"type"`
-	URL         string `json:"url" db:"url"`
-	Title       string `json:"title" db:"title"`
+	Type        string `json:"type,omitempty" db:"type"`
+	URL         string `json:"url,omitempty" db:"url"`
+	Title       string `json:"title,omitempty" db:"title"`
 	Description string `json:"description,omitempty" db:"description"`
 	Thumbnail   []byte `db:"thumbnail" json:"-"`
 }
@@ -104,7 +102,7 @@ func (s *Feed) Write(db *sqlx.DB) error {
 }
 
 func (s *Feed) Articles(db *sqlx.DB) (articles []Article, err error) {
-	rows, err := db.Queryx(`SELECT id, url, new, title, description, thumbnail, created
+	rows, err := db.Queryx(`SELECT id, url, new, title, description, thumbnail, created, readlater, created_readlater
 		FROM articles
 		WHERE articles.subscription_id = ?
 		ORDER BY articles.created DESC`,
@@ -121,8 +119,6 @@ func (s *Feed) Articles(db *sqlx.DB) (articles []Article, err error) {
 			return nil, err
 		}
 
-		article.CreatedParsed, _ = time.Parse(time.DateTime, article.Created)
-
 		articles = append(articles, article)
 	}
 
@@ -137,9 +133,9 @@ func (s *Feed) BulkAddArticles(db *sqlx.DB, a []Article) error {
 	}
 
 	stmt, err := tx.Prepare(`INSERT INTO articles 
-		(subscription_id, url, new, title, description, thumbnail, created)
+		(subscription_id, url, new, title, description, thumbnail, created, readlater)
 		VALUES 
-		($1, $2, TRUE, $3, $4, $5, $6)`,
+		($1, $2, TRUE, $3, $4, $5, $6, FALSE)`,
 	)
 	if err != nil {
 		tx.Rollback()

@@ -1,6 +1,7 @@
 package feed
 
 import (
+	"log"
 	"time"
 
 	"github.com/3elDU/rss-reader-backend/util"
@@ -15,16 +16,23 @@ func NewArticleFromGofeed(a *gofeed.Item) (*Article, error) {
 		thumb = &a.Image.URL
 	}
 
-	t := a.PublishedParsed.UTC()
+	var t time.Time
+	if a.PublishedParsed != nil {
+		t = a.PublishedParsed.UTC()
+	} else {
+		// Failsafe, when the published date is nil
+		t = time.Now().UTC()
+		log.Printf("gofeed article has PublishedParsed = nil: %v", a)
+	}
 	c := t.Format(time.DateTime)
+
 	art := &Article{
-		URL:           a.Link,
-		New:           true,
-		Title:         a.Title,
-		Description:   a.Description,
-		Thumbnail:     thumb,
-		Created:       c,
-		CreatedParsed: t,
+		URL:         a.Link,
+		New:         true,
+		Title:       a.Title,
+		Description: a.Description,
+		Thumbnail:   thumb,
+		Created:     c,
 	}
 
 	return art, nil

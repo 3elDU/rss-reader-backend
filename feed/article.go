@@ -11,7 +11,7 @@ type Article struct {
 	ID int `json:"id" db:"id"`
 
 	Subscription   *Feed `json:"subscription,omitempty"`
-	SubscriptionID int   `json:"subscription_id" db:"subscription_id"`
+	SubscriptionID int   `json:"subscriptionId" db:"subscription_id"`
 
 	URL         string `json:"url" db:"url"`
 	New         bool   `json:"new" db:"new"`
@@ -21,65 +21,41 @@ type Article struct {
 	Thumbnail *string `json:"thumbnail,omitempty"`
 
 	// Time string in [time.DateTime] format
-	Created       string    `json:"-" db:"created"`
-	CreatedParsed time.Time `json:"created"`
+	Created string `json:"created" db:"created"`
+
+	ReadLater bool `json:"readLater" db:"readlater"`
+	// This field is nil when ReadLater is false
+	AddedToReadLater *string `json:"addedToReadLater,omitempty" db:"created_readlater"`
+}
+
+func (a Article) CreatedTime() time.Time {
+	t, _ := time.Parse(time.DateTime, a.Created)
+	return t
+}
+
+// This function will return nil pointer, if the ReadLater field is false
+func (a Article) AddedToReadLaterTime() *time.Time {
+	if a.AddedToReadLater == nil {
+		return nil
+	}
+	t, _ := time.Parse(time.DateTime, a.Created)
+	return &t
 }
 
 // Fetch article from the database by its ID
 func FindArticleByID(db *sqlx.DB, id int) (*Article, error) {
-	row := db.QueryRowx(`SELECT subscription_id, url, new, title, description, thumbnail, created
+	row := db.QueryRowx(`SELECT subscription_id, url, new, title, description, thumbnail, created, readlater, created_readlater
 		FROM articles
 		WHERE articles.id = ?`,
 		id,
 	)
 
-	a := &Article{}
+	a := &Article{ID: id}
 	if err := row.StructScan(a); err != nil {
 		return nil, err
 	}
 
-	a.CreatedParsed, _ = time.Parse(time.DateTime, a.Created)
-
 	return a, nil
-}
-
-func UnreadArticles(db *sqlx.DB) ([]Article, error) {
-	rows, err := db.Queryx(`SELECT a.id, a.subscription_id, a.url, a.new, a.title, a.description, a.thumbnail, a.created, s.title
-		FROM articles a
-			INNER JOIN subscriptions s ON s.id = a.subscription_id
-			WHERE new = TRUE
-		ORDER BY a.created DESC
-	`)
-	if err != nil {
-		return nil, err
-	}
-
-	articles := []Article{}
-	for rows.Next() {
-		a := Article{
-			Subscription: &Feed{},
-		}
-		if err := rows.Scan(
-			&a.ID,
-			&a.SubscriptionID,
-			&a.URL,
-			&a.New,
-			&a.Title,
-			&a.Description,
-			&a.Thumbnail,
-			&a.Created,
-			&a.Subscription.Title,
-		); err != nil {
-			return nil, err
-		}
-
-		a.Subscription.ID = a.SubscriptionID
-		a.CreatedParsed, _ = time.Parse(time.DateTime, a.Created)
-
-		articles = append(articles, a)
-	}
-
-	return articles, nil
 }
 
 // Checks if the article with specified URL already exists in the database
@@ -100,8 +76,24 @@ func ArticleExistsInDB(db *sqlx.DB, url string) (exists bool, err error) {
 	return
 }
 
-func (a Article) AddToReadLater(db *sqlx.DB) (sql.Result, error) {
-	return db.Exec("INSERT INTO readlater (article_id) VALUES ($1)", a.ID)
+func (a *Article) AddToReadLater(db *sqlx.DB) (sql.Result, error) {
+	now := time.Now().UTC().Format(time.DateTime)
+
+	res, err := db.Exec(`
+		UPDATE articles
+		SET
+			readlater = TRUE,
+			created_readlater = ?
+		WHERE articles.id = ?`,
+		now, a.ID,
+	)
+	if err != nil {
+		return res, err
+	}
+
+	a.ReadLater = true
+	a.AddedToReadLater = &now
+	return res, err
 }
 
 // Add or update the article object in the database.

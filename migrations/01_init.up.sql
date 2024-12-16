@@ -27,10 +27,9 @@ CREATE TABLE IF NOT EXISTS articles (
   thumbnail TEXT,
   -- date when the article was written
   created TEXT NOT NULL,
+  -- whether the article was added to the read later list
+  readlater INTEGER NOT NULL,
+  -- when the article was added to the read later list
+  created_readlater TEXT,
   FOREIGN KEY(subscription_id) REFERENCES subscriptions(id)
-);
-CREATE TABLE IF NOT EXISTS readlater (
-  id INTEGER PRIMARY KEY ASC,
-  article_id INTEGER NOT NULL,
-  FOREIGN KEY(article_id) REFERENCES articles(id)
 );
