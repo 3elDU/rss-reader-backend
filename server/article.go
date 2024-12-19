@@ -114,3 +114,23 @@ func (s *Server) getUnreadArticles(w http.ResponseWriter, r *http.Request) {
 	encoded, _ := json.Marshal(articles)
 	w.Write(encoded)
 }
+
+func (s *Server) markArticleAsRead(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	article, err := feed.FindArticleByID(s.db, id)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	if _, err := article.MarkAsRead(s.db); err != nil {
+		log.Printf("failed to mark article as read: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}

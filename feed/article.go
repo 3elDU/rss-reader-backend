@@ -76,10 +76,10 @@ func ArticleExistsInDB(db *sqlx.DB, url string) (exists bool, err error) {
 	return
 }
 
-func (a *Article) AddToReadLater(db *sqlx.DB) (sql.Result, error) {
+func (a *Article) AddToReadLater(db *sqlx.DB) (res sql.Result, err error) {
 	now := time.Now().UTC().Format(time.DateTime)
 
-	res, err := db.Exec(`
+	res, err = db.Exec(`
 		UPDATE articles
 		SET
 			readlater = TRUE,
@@ -88,12 +88,26 @@ func (a *Article) AddToReadLater(db *sqlx.DB) (sql.Result, error) {
 		now, a.ID,
 	)
 	if err != nil {
-		return res, err
+		return
 	}
 
 	a.ReadLater = true
 	a.AddedToReadLater = &now
-	return res, err
+	return
+}
+
+func (a *Article) MarkAsRead(db *sqlx.DB) (res sql.Result, err error) {
+	res, err = db.Exec(`
+		UPDATE articles
+		SET new = FALSE
+		WHERE articles.id = ?
+	`, a.ID)
+	if err != nil {
+		return
+	}
+
+	a.New = false
+	return
 }
 
 // Add or update the article object in the database.
