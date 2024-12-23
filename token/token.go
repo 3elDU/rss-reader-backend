@@ -27,11 +27,20 @@ func (t Token) Expired() bool {
 
 // Write token to the database.
 // Sets its ID property to the row created in the database.
-func (t *Token) Write(db *sql.DB) (err error) {
+func (t *Token) Write(db *sql.DB) error {
+	created := t.CreatedAt.Format(time.DateTime)
+
+	valid := func() interface{} {
+		if t.ValidUntil != nil {
+			return t.ValidUntil.Format(time.DateTime)
+		}
+		return nil
+	}
+
 	res, err := db.Exec(
 		`INSERT INTO auth_tokens (token, created_at, valid_until)
-		VALUES ($1, $2, $3)`,
-		t.Token, t.CreatedAt, t.ValidUntil,
+		VALUES (?, ?, ?)`,
+		t.Token, created, valid(),
 	)
 	if err != nil {
 		return err
@@ -43,19 +52,27 @@ func (t *Token) Write(db *sql.DB) (err error) {
 	}
 
 	t.ID = int(id)
-
-	return
+	return nil
 }
 
 // Finds a token in the database by its value
 func FindByString(db *sql.DB, tokenString string) (*Token, error) {
-	row := db.QueryRow("SELECT * FROM auth_tokens WHERE auth_tokens.token = $1", tokenString)
+	row := db.QueryRow(
+		`SELECT id, token, created_at, valid_until FROM auth_tokens
+		WHERE auth_tokens.token = $1`,
+		tokenString,
+	)
 
-	token := Token{}
+	token := Token{ValidUntil: nil}
 	createdAt := ""
 	var validUntil sql.NullString
 
-	if err := row.Scan(&token.ID, &token.Token, &createdAt, &validUntil); err != nil {
+	if err := row.Scan(
+		&token.ID,
+		&token.Token,
+		&createdAt,
+		&validUntil,
+	); err != nil {
 		return nil, err
 	}
 
@@ -78,7 +95,7 @@ func New(validFor *time.Duration) *Token {
 
 	t := base64.URLEncoding.EncodeToString(buf)
 
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Second)
 	var validUntil *time.Time
 	if validFor != nil {
 		added := now.Add(*validFor)
