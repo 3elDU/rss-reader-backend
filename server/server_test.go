@@ -19,6 +19,7 @@ import (
 
 var TestDB *sqlx.DB
 var TestServer *httptest.Server
+var ServerStruct *server.Server
 
 // Utility function that enables authentication for the specific test.
 // Returns a function to call with defer
@@ -48,7 +49,8 @@ func TestMain(t *testing.M) {
 
 	TestDB = db
 
-	TestServer = httptest.NewServer(server.NewServer(db, nil))
+	ServerStruct = server.NewServer(db, nil)
+	TestServer = httptest.NewServer(ServerStruct)
 	defer TestServer.Close()
 	// Disable authorization for all requests
 	server.NoAuth = true

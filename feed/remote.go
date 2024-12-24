@@ -3,8 +3,8 @@ package feed
 import "github.com/mmcdole/gofeed"
 
 // Fetches a remote feed using gofeed, returns the feed object and articles in it
-func FetchRemote(url string) (*Feed, []Article, error) {
-	gf, err := gofeed.NewParser().ParseURL(url)
+func FetchRemote(parser *gofeed.Parser, url string) (*Feed, []Article, error) {
+	gf, err := parser.ParseURL(url)
 	if err != nil {
 		return nil, nil, err
 	}

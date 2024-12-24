@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"github.com/3elDU/rss-reader-backend/feed"
+	"github.com/mmcdole/gofeed"
 )
 
 func (s *Server) getSubscriptions(w http.ResponseWriter, r *http.Request) {
@@ -108,11 +109,17 @@ func (s *Server) subscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sub, articles, err := feed.FetchRemote(url)
+	sub, articles, err := feed.FetchRemote(s.Parser, url)
 	if err != nil {
 		log.Printf("failed to fetch remote feed: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+
+		if err, ok := err.(gofeed.HTTPError); ok && err.StatusCode == 404 {
+			http.Error(w, "404 when fetching remote feed", http.StatusBadRequest)
+			return
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
 
 	if err := sub.Write(s.db); err != nil {

@@ -6,6 +6,7 @@ import (
 	"github.com/3elDU/rss-reader-backend/refresh"
 	"github.com/go-playground/validator/v10"
 	"github.com/jmoiron/sqlx"
+	"github.com/mmcdole/gofeed"
 )
 
 type Server struct {
@@ -13,6 +14,7 @@ type Server struct {
 
 	db       *sqlx.DB
 	validate *validator.Validate
+	Parser   *gofeed.Parser
 
 	r *refresh.Task
 }
@@ -22,6 +24,7 @@ func NewServer(db *sqlx.DB, refresher *refresh.Task) *Server {
 		ServeMux: http.NewServeMux(),
 		db:       db,
 		validate: validator.New(),
+		Parser:   gofeed.NewParser(),
 		r:        refresher,
 	}
 	s.registerRoutes()
