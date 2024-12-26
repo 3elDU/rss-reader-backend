@@ -74,6 +74,9 @@ func runMigrations() {
 }
 
 func main() {
+	// Show file and line number where the log originated
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
 	flag.BoolVar(
 		&server.NoAuth,
 		"noauth",
