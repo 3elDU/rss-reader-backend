@@ -70,7 +70,7 @@ func (s *Server) showReadLater(w http.ResponseWriter, r *http.Request) {
 	FROM articles a
 		INNER JOIN subscriptions s on a.subscription_id = s.id
 	WHERE a.readlater = TRUE
-	ORDER BY a.created DESC`)
+	ORDER BY a.created_readlater DESC`)
 	if err != nil {
 		log.Printf("failed fetching articles in read later: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
