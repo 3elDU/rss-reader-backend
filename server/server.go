@@ -12,9 +12,9 @@ import (
 type Server struct {
 	*http.ServeMux
 
-	db       *sqlx.DB
-	validate *validator.Validate
-	Parser   *gofeed.Parser
+	db     *sqlx.DB
+	v      *validator.Validate
+	Parser *gofeed.Parser
 
 	r *refresh.Task
 }
@@ -23,7 +23,7 @@ func NewServer(db *sqlx.DB, refresher *refresh.Task) *Server {
 	s := &Server{
 		ServeMux: http.NewServeMux(),
 		db:       db,
-		validate: validator.New(),
+		v:        validator.New(),
 		Parser:   gofeed.NewParser(),
 		r:        refresher,
 	}
@@ -47,7 +47,12 @@ func (s *Server) registerRoutes() {
 	s.Handle("GET /subscriptions",
 		withRequestValidation(s.db, s.getSubscriptions),
 	)
-	s.Handle("POST /subscribe", withRequestValidation(s.db, s.subscribe))
+	s.Handle("GET /feedinfo",
+		withRequestValidation(s.db, s.fetchFeedInfo),
+	)
+	s.Handle("POST /subscribe",
+		withRequestValidation(s.db, s.subscribe),
+	)
 
 	s.Handle("GET /subscriptions/{id}/articles",
 		withRequestValidation(s.db, s.getArticles),

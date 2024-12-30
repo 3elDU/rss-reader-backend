@@ -2,7 +2,23 @@ package feed
 
 import "github.com/mmcdole/gofeed"
 
-// Fetches a remote feed using gofeed, returns the feed object and articles in it
+// FetchRemoteFeed fetches a remote feed through rss
+func FetchRemoteFeed(parser *gofeed.Parser, url string) (*Feed, error) {
+	gf, err := parser.ParseURL(url)
+	if err != nil {
+		return nil, err
+	}
+
+	f, err := NewFeedFromGofeed(gf)
+	f.URL = url
+	if err != nil {
+		return nil, err
+	}
+
+	return f, nil
+}
+
+// FetchRemote fetches a remote feed through rss along with all articles in it.
 func FetchRemote(parser *gofeed.Parser, url string) (*Feed, []Article, error) {
 	gf, err := parser.ParseURL(url)
 	if err != nil {
@@ -10,6 +26,7 @@ func FetchRemote(parser *gofeed.Parser, url string) (*Feed, []Article, error) {
 	}
 
 	f, err := NewFeedFromGofeed(gf)
+	f.URL = url
 	if err != nil {
 		return nil, nil, err
 	}
