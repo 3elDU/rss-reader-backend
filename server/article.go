@@ -40,7 +40,6 @@ func (s *Server) getArticles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	encoded, _ := json.Marshal(articles)
 	w.Write(encoded)
 }
@@ -64,7 +63,6 @@ func (s *Server) getSingleArticle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	encoded, _ := json.Marshal(article)
 	w.Write(encoded)
 }
@@ -110,7 +108,6 @@ func (s *Server) getUnreadArticles(w http.ResponseWriter, r *http.Request) {
 		articles = append(articles, a)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	encoded, _ := json.Marshal(articles)
 	w.Write(encoded)
 }

@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/3elDU/rss-reader-backend/middleware"
 	"github.com/3elDU/rss-reader-backend/server"
 	"github.com/3elDU/rss-reader-backend/token"
 	"github.com/golang-migrate/migrate/v4"
@@ -24,9 +25,9 @@ var ServerStruct *server.Server
 // Utility function that enables authentication for the specific test.
 // Returns a function to call with defer
 func EnableAuthForThisTest() func() {
-	server.NoAuth = false
+	middleware.NoAuth = false
 	return func() {
-		server.NoAuth = true
+		middleware.NoAuth = true
 	}
 }
 
@@ -53,7 +54,7 @@ func TestMain(t *testing.M) {
 	TestServer = httptest.NewServer(ServerStruct)
 	defer TestServer.Close()
 	// Disable authorization for all requests
-	server.NoAuth = true
+	middleware.NoAuth = true
 
 	code := t.Run()
 	os.Exit(code)

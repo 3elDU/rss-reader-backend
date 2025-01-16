@@ -112,6 +112,5 @@ func (s *Server) showReadLater(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data, _ := json.Marshal(articles)
-	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
 }

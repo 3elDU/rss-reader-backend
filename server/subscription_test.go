@@ -84,7 +84,7 @@ func TestSubscriptionRoutes(t *testing.T) {
 			"/subscribe",
 			strings.NewReader(`{"url": "https://example.com/rss.xml"}`),
 			http.StatusCreated,
-			`{"id":1,"type":"rss","title":"Test Feed","description":"Test feed for testing"}`,
+			`{"id":1,"type":"rss","url":"https://example.com/rss.xml","title":"Test Feed","description":"Test feed for testing"}`,
 		},
 		{
 			"get feed by id",
@@ -92,7 +92,7 @@ func TestSubscriptionRoutes(t *testing.T) {
 			"/subscriptions/1",
 			nil,
 			200,
-			`{"id":1,"type":"rss","title":"Test Feed","description":"Test feed for testing"}`,
+			`{"id":1,"type":"rss","url":"https://example.com/rss.xml","title":"Test Feed","description":"Test feed for testing"}`,
 		},
 		{
 			"get all feeds",
@@ -100,7 +100,7 @@ func TestSubscriptionRoutes(t *testing.T) {
 			"/subscriptions",
 			nil,
 			200,
-			`[{"id":1,"type":"rss","title":"Test Feed","description":"Test feed for testing"}]`,
+			`[{"id":1,"type":"rss","url":"https://example.com/rss.xml","title":"Test Feed","description":"Test feed for testing"}]`,
 		},
 		{
 			"get subscriptions articles",
@@ -108,7 +108,7 @@ func TestSubscriptionRoutes(t *testing.T) {
 			"/subscriptions/1/articles",
 			nil,
 			200,
-			`[{"id":1,"subscription":{"id":1,"type":"rss","title":"Test Feed","description":"Test feed for testing"},"subscriptionId":1,"url":"https://example.com/test-article","new":true,"title":"Test Article","description":"Test article description","created":"2024-12-24 00:00:00","readLater":false}]`,
+			`[{"id":1,"subscription":{"id":1,"type":"rss","url":"https://example.com/rss.xml","title":"Test Feed","description":"Test feed for testing"},"subscriptionId":1,"url":"https://example.com/test-article","new":true,"title":"Test Article","description":"Test article description","created":"2024-12-24 00:00:00","readLater":false}]`,
 		},
 		{
 			"proper 404 handling",

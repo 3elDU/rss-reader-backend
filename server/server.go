@@ -3,6 +3,7 @@ package server
 import (
 	"net/http"
 
+	"github.com/3elDU/rss-reader-backend/middleware"
 	"github.com/3elDU/rss-reader-backend/refresh"
 	"github.com/go-playground/validator/v10"
 	"github.com/jmoiron/sqlx"
@@ -35,50 +36,31 @@ func NewServer(db *sqlx.DB, refresher *refresh.Task) *Server {
 func (s *Server) registerRoutes() {
 	// Route to test that the token is valid and that the backend is working properly
 	s.Handle("GET /ping",
-		withRequestValidation(s.db, func(w http.ResponseWriter, r *http.Request) {
+		middleware.Auth(s.db, func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/plain")
 			w.Write([]byte("pong"))
 		}),
 	)
 
-	s.Handle("GET /subscriptions/{id}",
-		withRequestValidation(s.db, s.getSingleSubscription),
-	)
-	s.Handle("GET /subscriptions",
-		withRequestValidation(s.db, s.getSubscriptions),
-	)
-	s.Handle("GET /feedinfo",
-		withRequestValidation(s.db, s.fetchFeedInfo),
-	)
-	s.Handle("POST /subscribe",
-		withRequestValidation(s.db, s.subscribe),
-	)
+	// All those routes use the same set of middlewares (auth + json response)
+	routes := map[string]http.HandlerFunc{
+		"GET /subscriptions/{id}":          s.getSingleSubscription,
+		"GET /subscriptions":               s.getSubscriptions,
+		"GET /feedinfo":                    s.fetchFeedInfo,
+		"POST /subscribe":                  s.subscribe,
+		"GET /subscriptions/{id}/articles": s.getArticles,
+		"GET /articles/{id}":               s.getSingleArticle,
+		"POST /articles/{id}/markread":     s.markArticleAsRead,
+		"POST /articles/{id}/readlater":    s.addToReadLater,
+		"DELETE /articles/{id}/readlater":  s.removeFromReadLater,
+		"GET /readlater":                   s.showReadLater,
+		"GET /unread":                      s.getUnreadArticles,
+		"POST /refresh":                    s.refresh,
+	}
 
-	s.Handle("GET /subscriptions/{id}/articles",
-		withRequestValidation(s.db, s.getArticles),
-	)
-
-	s.Handle("GET /articles/{id}",
-		withRequestValidation(s.db, s.getSingleArticle),
-	)
-	s.Handle("POST /articles/{id}/markread",
-		withRequestValidation(s.db, s.markArticleAsRead),
-	)
-	s.Handle("POST /articles/{id}/readlater",
-		withRequestValidation(s.db, s.addToReadLater),
-	)
-	s.Handle("DELETE /articles/{id}/readlater",
-		withRequestValidation(s.db, s.removeFromReadLater),
-	)
-	s.Handle("GET /readlater",
-		withRequestValidation(s.db, s.showReadLater),
-	)
-
-	s.Handle("GET /unread",
-		withRequestValidation(s.db, s.getUnreadArticles),
-	)
-
-	s.Handle("POST /refresh",
-		withRequestValidation(s.db, s.refresh),
-	)
+	for p, r := range routes {
+		s.Handle(p,
+			middleware.Json(middleware.Auth(s.db, r)),
+		)
+	}
 }

@@ -36,7 +36,6 @@ func (s *Server) getSubscriptions(w http.ResponseWriter, r *http.Request) {
 		subscriptions = append(subscriptions, subscription)
 	}
 
-	w.Header().Add("Content-Type", "application/json")
 	encoded, _ := json.Marshal(subscriptions)
 	w.Write(encoded)
 }
@@ -61,7 +60,6 @@ func (s *Server) getSingleSubscription(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	encoded, _ := json.Marshal(sub)
 	w.Write(encoded)
 }
@@ -148,7 +146,6 @@ func (s *Server) subscribe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	j, _ := json.Marshal(sub)
-	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	w.Write(j)
 }
@@ -192,6 +189,5 @@ func (s *Server) fetchFeedInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data, _ := json.Marshal(f)
-	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
 }

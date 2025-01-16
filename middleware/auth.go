@@ -1,4 +1,4 @@
-package server
+package middleware
 
 import (
 	"context"
@@ -18,7 +18,10 @@ var (
 	NoAuth = false
 )
 
-func withRequestValidation(db *sqlx.DB, next http.HandlerFunc) http.HandlerFunc {
+// Auth checks the token in the Authorization header against the provided database.
+// The token is then provided in the context value
+// If `NoAuth` is false - all checks are skipped and the dummy token is set in the context
+func Auth(db *sqlx.DB, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if NoAuth {
 			request := r.WithContext(context.WithValue(

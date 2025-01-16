@@ -1,10 +1,13 @@
 package feed
 
 import (
+	"fmt"
+	"io"
 	"log"
+	"net/http"
+	"net/url"
 	"time"
 
-	"github.com/3elDU/rss-reader-backend/util"
 	"github.com/mmcdole/gofeed"
 )
 
@@ -41,7 +44,7 @@ func NewArticleFromGofeed(a *gofeed.Item) (*Article, error) {
 // Converts gofeed.Feed into feed.Feed
 // Does not add the feed to the database, so ID is always zero
 func NewFeedFromGofeed(f *gofeed.Feed) (*Feed, error) {
-	thumb, err := util.FetchFavicon(f.Link)
+	thumb, err := fetchFavicon(f.Link)
 	if err != nil {
 		return nil, err
 	}
@@ -54,4 +57,18 @@ func NewFeedFromGofeed(f *gofeed.Feed) (*Feed, error) {
 		Thumbnail:   thumb,
 	}
 	return feed, nil
+}
+
+// Fetch the website's favicon using google favicon cache, returns the image blob
+func fetchFavicon(website string) ([]byte, error) {
+	u := fmt.Sprintf(
+		"https://www.google.com/s2/favicons?sz=64&domain=%v",
+		url.QueryEscape(website),
+	)
+	res, err := http.DefaultClient.Get(u)
+	if err != nil {
+		return nil, err
+	}
+
+	return io.ReadAll(res.Body)
 }

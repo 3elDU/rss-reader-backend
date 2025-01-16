@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/3elDU/rss-reader-backend/middleware"
 	"github.com/3elDU/rss-reader-backend/refresh"
 	"github.com/3elDU/rss-reader-backend/server"
 	"github.com/3elDU/rss-reader-backend/token"
@@ -78,14 +79,14 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	flag.BoolVar(
-		&server.NoAuth,
+		&middleware.NoAuth,
 		"noauth",
 		false,
 		"Disable authentication entirely. Useful for debugging.",
 	)
 
 	flag.Parse()
-	if server.NoAuth && !*createToken {
+	if middleware.NoAuth && !*createToken {
 		log.Printf("*** RUNNING WITH AUTHENTICATION DISABLED ***")
 	}
 
