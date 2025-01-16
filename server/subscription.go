@@ -16,14 +16,14 @@ import (
 	"github.com/mmcdole/gofeed"
 )
 
-func (s *Server) getSubscriptions(w http.ResponseWriter, r *http.Request) {
+func (s *Server) getSubscriptions(w http.ResponseWriter, r *http.Request) error {
 	subscriptions := []feed.Feed{}
 
 	rows, err := s.db.Queryx("SELECT id, type, url, title, description FROM subscriptions")
 	if err != nil {
 		log.Printf("error fetching subscriptions from db: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	for rows.Next() {
@@ -31,37 +31,39 @@ func (s *Server) getSubscriptions(w http.ResponseWriter, r *http.Request) {
 		if err := rows.StructScan(&subscription); err != nil {
 			log.Printf("failed to scan subscription struct: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
-			return
+			return err
 		}
 		subscriptions = append(subscriptions, subscription)
 	}
 
 	encoded, _ := json.Marshal(subscriptions)
 	w.Write(encoded)
+	return nil
 }
 
-func (s *Server) getSingleSubscription(w http.ResponseWriter, r *http.Request) {
+func (s *Server) getSingleSubscription(w http.ResponseWriter, r *http.Request) error {
 	// Validate the id
 	idString := r.PathValue("id")
 	id, err := strconv.Atoi(idString)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		return
+		return nil
 	}
 
 	sub, err := feed.FindByID(s.db, id)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		w.WriteHeader(http.StatusNotFound)
-		return
+		return nil
 	} else if err != nil {
 		log.Printf("failed to scan subscription struct: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	encoded, _ := json.Marshal(sub)
 	w.Write(encoded)
+	return nil
 }
 
 type SubscribeRequest struct {
@@ -71,19 +73,19 @@ type SubscribeRequest struct {
 	Description string
 }
 
-func (s *Server) subscribe(w http.ResponseWriter, r *http.Request) {
+func (s *Server) subscribe(w http.ResponseWriter, r *http.Request) error {
 	body := SubscribeRequest{}
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
 		log.Printf("invalid json: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
-		return
+		return nil
 	}
 
 	if err := s.v.Struct(&body); err != nil {
 		log.Printf("validate error: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
-		return
+		return nil
 	}
 
 	url := body.URL
@@ -95,6 +97,7 @@ func (s *Server) subscribe(w http.ResponseWriter, r *http.Request) {
 			url,
 			err,
 		)
+		return err
 	}
 
 	// Return early if the subscription already exists in the database
@@ -109,7 +112,7 @@ func (s *Server) subscribe(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("/subscriptions/%v", f.ID),
 		)
 		w.WriteHeader(http.StatusFound)
-		return
+		return nil
 	}
 
 	sub, articles, err := feed.FetchRemote(s.Parser, url)
@@ -118,10 +121,10 @@ func (s *Server) subscribe(w http.ResponseWriter, r *http.Request) {
 
 		if err, ok := err.(gofeed.HTTPError); ok && err.StatusCode == 404 {
 			http.Error(w, "404 when fetching remote feed", http.StatusBadRequest)
-			return
+			return nil
 		} else {
 			w.WriteHeader(http.StatusInternalServerError)
-			return
+			return err
 		}
 	}
 
@@ -136,36 +139,38 @@ func (s *Server) subscribe(w http.ResponseWriter, r *http.Request) {
 	if err := sub.Write(s.db); err != nil {
 		log.Printf("failed to insert into db: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	if err := sub.BulkAddArticles(s.db, articles); err != nil {
 		log.Printf("failed to populate articles in db: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	j, _ := json.Marshal(sub)
 	w.WriteHeader(http.StatusCreated)
 	w.Write(j)
+	return nil
 }
 
-func (s *Server) fetchFeedInfo(w http.ResponseWriter, r *http.Request) {
+func (s *Server) fetchFeedInfo(w http.ResponseWriter, r *http.Request) error {
 	u := r.URL.Query().Get("url")
 	if _, err := url.Parse(u); err != nil || u == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		return
+		return nil
 	}
 
 	f, err := feed.FetchRemoteFeed(s.Parser, u)
 	switch err.(type) {
 	case gofeed.HTTPError:
 		http.Error(w, "error while fetching remote feed", http.StatusBadRequest)
-		return
+		return nil
 	case nil:
 	default:
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
+		return err
 	}
 
 	// Check if feed with the specified URL already exists in the database
@@ -176,7 +181,7 @@ func (s *Server) fetchFeedInfo(w http.ResponseWriter, r *http.Request) {
 		); err != nil {
 			log.Println(err)
 			w.WriteHeader(http.StatusInternalServerError)
-			return
+			return err
 		}
 
 		// Populate feed with it's ID in the database
@@ -185,9 +190,10 @@ func (s *Server) fetchFeedInfo(w http.ResponseWriter, r *http.Request) {
 	} else if err != nil {
 		fmt.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	data, _ := json.Marshal(f)
 	w.Write(data)
+	return nil
 }

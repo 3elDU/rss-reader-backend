@@ -11,61 +11,63 @@ import (
 	"github.com/3elDU/rss-reader-backend/feed"
 )
 
-func (s *Server) addToReadLater(w http.ResponseWriter, r *http.Request) {
+func (s *Server) addToReadLater(w http.ResponseWriter, r *http.Request) error {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		return
+		return nil
 	}
 
 	article, err := feed.FindArticleByID(s.db, id)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		w.WriteHeader(http.StatusNotFound)
-		return
+		return nil
 	} else if err != nil {
 		log.Printf("error fetching article: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	if _, err := article.AddToReadLater(s.db); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Printf("error adding article to read later: %v", err)
-		return
+		return err
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+	return nil
 }
 
-func (s *Server) removeFromReadLater(w http.ResponseWriter, r *http.Request) {
+func (s *Server) removeFromReadLater(w http.ResponseWriter, r *http.Request) error {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		return
+		return nil
 	}
 
 	article, err := feed.FindArticleByID(s.db, id)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		w.WriteHeader(http.StatusNotFound)
-		return
+		return nil
 	} else if err != nil {
 		log.Printf("error fetching article: %v", article)
 		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return err
 	}
 
-	s.db.Exec(
+	_, err = s.db.Exec(
 		`UPDATE articles SET
 			readlater = FALSE,
 			created_readlater = NULL
 		WHERE articles.id = ?`,
 		article.ID,
 	)
+	return err
 }
 
-func (s *Server) showReadLater(w http.ResponseWriter, r *http.Request) {
+func (s *Server) showReadLater(w http.ResponseWriter, r *http.Request) error {
 	rows, err := s.db.Queryx(`SELECT a.id, a.subscription_id, a.url, a.new, a.title, a.description, a.thumbnail, a.created, a.readlater, a.created_readlater, s.title
 	FROM articles a
 		INNER JOIN subscriptions s on a.subscription_id = s.id
@@ -74,7 +76,7 @@ func (s *Server) showReadLater(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("failed fetching articles in read later: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	articles := []feed.Article{}
@@ -98,7 +100,7 @@ func (s *Server) showReadLater(w http.ResponseWriter, r *http.Request) {
 		); err != nil {
 			log.Printf("failed fetching articles in read later: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
-			return
+			return err
 		}
 
 		a.Subscription.ID = a.SubscriptionID
@@ -108,9 +110,10 @@ func (s *Server) showReadLater(w http.ResponseWriter, r *http.Request) {
 	if err := rows.Err(); err != nil {
 		log.Printf("failed fetching articles in read later: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	data, _ := json.Marshal(articles)
 	w.Write(data)
+	return nil
 }

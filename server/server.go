@@ -43,7 +43,7 @@ func (s *Server) registerRoutes() {
 	)
 
 	// All those routes use the same set of middlewares (auth + json response)
-	routes := map[string]http.HandlerFunc{
+	routes := map[string]middleware.ErrorHandler{
 		"GET /subscriptions/{id}":          s.getSingleSubscription,
 		"GET /subscriptions":               s.getSubscriptions,
 		"GET /feedinfo":                    s.fetchFeedInfo,
@@ -60,7 +60,7 @@ func (s *Server) registerRoutes() {
 
 	for p, r := range routes {
 		s.Handle(p,
-			middleware.Json(middleware.Auth(s.db, r)),
+			middleware.Json(middleware.Auth(s.db, middleware.Error(r))),
 		)
 	}
 }

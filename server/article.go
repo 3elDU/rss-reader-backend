@@ -13,61 +13,63 @@ import (
 	"github.com/3elDU/rss-reader-backend/feed"
 )
 
-func (s *Server) getArticles(w http.ResponseWriter, r *http.Request) {
+func (s *Server) getArticles(w http.ResponseWriter, r *http.Request) error {
 	// Validate the subscription id
 	idString := r.PathValue("id")
 	id, err := strconv.Atoi(idString)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		return
+		return nil
 	}
 
 	sub, err := feed.FindByID(s.db, id)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		w.WriteHeader(http.StatusNotFound)
-		return
+		return nil
 	} else if err != nil {
 		log.Printf("failed to fetch subscription from db: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	articles, err := sub.Articles(s.db)
 	if err != nil {
 		log.Printf("failed to fetch articles from db: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	encoded, _ := json.Marshal(articles)
 	w.Write(encoded)
+	return nil
 }
 
-func (s *Server) getSingleArticle(w http.ResponseWriter, r *http.Request) {
+func (s *Server) getSingleArticle(w http.ResponseWriter, r *http.Request) error {
 	idString := r.PathValue("id")
 	id, err := strconv.Atoi(idString)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		return
+		return nil
 	}
 
 	article, err := feed.FindArticleByID(s.db, id)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		w.WriteHeader(http.StatusNotFound)
-		return
+		return nil
 	} else if err != nil {
 		log.Printf("error fetching article: %v", article)
 		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	encoded, _ := json.Marshal(article)
 	w.Write(encoded)
+	return nil
 }
 
-func (s *Server) getUnreadArticles(w http.ResponseWriter, r *http.Request) {
+func (s *Server) getUnreadArticles(w http.ResponseWriter, r *http.Request) error {
 	rows, err := s.db.Queryx(`SELECT a.id, a.subscription_id, a.url, a.new, a.title, a.description, a.thumbnail, a.created, a.readlater, a.created_readlater, s.title
 		FROM articles a
 			INNER JOIN subscriptions s ON s.id = a.subscription_id
@@ -77,7 +79,7 @@ func (s *Server) getUnreadArticles(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("failed to query db: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	articles := []feed.Article{}
@@ -100,7 +102,7 @@ func (s *Server) getUnreadArticles(w http.ResponseWriter, r *http.Request) {
 		); err != nil {
 			log.Printf("failed to scan article: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
-			return
+			return err
 		}
 
 		a.Subscription.ID = a.SubscriptionID
@@ -110,24 +112,27 @@ func (s *Server) getUnreadArticles(w http.ResponseWriter, r *http.Request) {
 
 	encoded, _ := json.Marshal(articles)
 	w.Write(encoded)
+	return nil
 }
 
-func (s *Server) markArticleAsRead(w http.ResponseWriter, r *http.Request) {
+func (s *Server) markArticleAsRead(w http.ResponseWriter, r *http.Request) error {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		return
+		return nil
 	}
 
 	article, err := feed.FindArticleByID(s.db, id)
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
-		return
+		return nil
 	}
 
 	if _, err := article.MarkAsRead(s.db); err != nil {
 		log.Printf("failed to mark article as read: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return err
 	}
+
+	return nil
 }
