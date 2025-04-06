@@ -75,7 +75,9 @@ func (t *Task) Refresh() ([]resource.Article, error) {
 		}
 
 		if new {
-			t.ar.InsertArticle(&anew)
+			if err := t.ar.InsertArticle(&anew); err != nil {
+				return nil, err
+			}
 			na = append(na, resource.NewArticle(anew))
 		}
 	}
