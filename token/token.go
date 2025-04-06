@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"time"
+
+	"github.com/3elDU/rss-reader-backend/database"
 )
 
 type ContextKey string
@@ -12,77 +14,50 @@ type ContextKey string
 const TokenContextKey ContextKey = "token"
 
 type Token struct {
-	ID         int        `db:"id"`
-	Token      string     `db:"token"`
-	CreatedAt  time.Time  `db:"created_at"`
-	ValidUntil *time.Time `db:"valid_until"`
+	ID         int64
+	Token      string
+	CreatedAt  time.Time
+	ValidUntil time.Time
 }
 
 func (t Token) Expired() bool {
-	if t.ValidUntil == nil {
-		return false
-	}
 	return !t.ValidUntil.IsZero() && t.ValidUntil.Before(time.Now().UTC())
 }
 
-// Write token to the database.
-// Sets its ID property to the row created in the database.
-func (t *Token) Write(db *sql.DB) error {
-	created := t.CreatedAt.Format(time.DateTime)
-
-	valid := func() interface{} {
-		if t.ValidUntil != nil {
-			return t.ValidUntil.Format(time.DateTime)
-		}
-		return nil
+func (t Token) ToModel() database.Token {
+	vs := ""
+	if !t.ValidUntil.IsZero() {
+		vs = t.ValidUntil.Format(time.DateTime)
 	}
 
-	res, err := db.Exec(
-		`INSERT INTO auth_tokens (token, created_at, valid_until)
-		VALUES (?, ?, ?)`,
-		t.Token, created, valid(),
-	)
-	if err != nil {
-		return err
+	return database.Token{
+		ID:    t.ID,
+		Token: t.Token,
+		CreatedAt: sql.NullString{
+			String: t.CreatedAt.Format(time.DateTime),
+			Valid:  true,
+		},
+		ValidUntil: sql.NullString{
+			String: vs,
+			Valid:  !t.ValidUntil.IsZero(),
+		},
 	}
-
-	id, err := res.LastInsertId()
-	if err != nil {
-		return err
-	}
-
-	t.ID = int(id)
-	return nil
 }
 
-// Finds a token in the database by its value
-func FindByString(db *sql.DB, tokenString string) (*Token, error) {
-	row := db.QueryRow(
-		`SELECT id, token, created_at, valid_until FROM auth_tokens
-		WHERE auth_tokens.token = $1`,
-		tokenString,
-	)
+func FromModel(t database.Token) Token {
+	ca, _ := time.Parse(time.DateTime, t.CreatedAt.String)
 
-	token := Token{ValidUntil: nil}
-	createdAt := ""
-	var validUntil sql.NullString
-
-	if err := row.Scan(
-		&token.ID,
-		&token.Token,
-		&createdAt,
-		&validUntil,
-	); err != nil {
-		return nil, err
+	vu := time.Time{}
+	if t.ValidUntil.Valid {
+		vu, _ = time.Parse(time.DateTime, t.ValidUntil.String)
 	}
 
-	token.CreatedAt, _ = time.Parse(time.DateTime, createdAt)
-	if validUntil.Valid {
-		t, _ := time.Parse(time.DateTime, validUntil.String)
-		token.ValidUntil = &t
+	return Token{
+		ID:         t.ID,
+		Token:      t.Token,
+		CreatedAt:  ca,
+		ValidUntil: vu,
 	}
-
-	return &token, nil
 }
 
 // Generate a new token.
@@ -96,10 +71,11 @@ func New(validFor *time.Duration) *Token {
 	t := base64.URLEncoding.EncodeToString(buf)
 
 	now := time.Now().UTC().Truncate(time.Second)
-	var validUntil *time.Time
-	if validFor != nil {
+	validUntil := time.Time{}
+
+	if validFor != nil && validFor.Nanoseconds() != 0 {
 		added := now.Add(*validFor)
-		validUntil = &added
+		validUntil = added
 	}
 
 	return &Token{

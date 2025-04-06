@@ -4,10 +4,10 @@ package refresh
 
 import (
 	"log"
-	"slices"
 	"time"
 
-	"github.com/3elDU/rss-reader-backend/feed"
+	"github.com/3elDU/rss-reader-backend/database"
+	"github.com/3elDU/rss-reader-backend/resource"
 	"github.com/jmoiron/sqlx"
 	"github.com/mmcdole/gofeed"
 )
@@ -15,17 +15,23 @@ import (
 // Refresh task that will run with a specified periodicity.
 type Task struct {
 	Ticker *time.Ticker
+	Parser *gofeed.Parser
 	db     *sqlx.DB
+	sr     database.SubscriptionRepository
+	ar     database.ArticleRepository
 }
 
 func NewTask(db *sqlx.DB, freq time.Duration) *Task {
 	return &Task{
-		db:     db,
 		Ticker: time.NewTicker(freq),
+		Parser: gofeed.NewParser(),
+		db:     db,
+		sr:     database.NewSubscriptionRepository(db),
+		ar:     database.NewArticleRepository(db),
 	}
 }
 
-// Run the task scheduler. This function blocks indefinetely.
+// Run blocks indefinetely, and runs the Refresh function in repeated intervals
 func (t *Task) Run() {
 	for {
 		<-t.Ticker.C
@@ -37,94 +43,59 @@ func (t *Task) Run() {
 }
 
 // Refresh all the feeds. This function can also be called manually.
-func (t *Task) Refresh() ([]feed.Article, error) {
-	feeds, err := t.collectFeeds()
+func (t *Task) Refresh() ([]resource.Article, error) {
+	f, err := t.sr.All()
 	if err != nil {
 		return nil, err
 	}
 
 	// Articles currently in the database
-	articlesInDB, err := t.collectArticles(feeds)
+	adb, err := t.ar.All()
 	if err != nil {
 		return nil, err
 	}
 
-	// Articles fetched from the feed
-	articlesInFeed, err := t.collectNewArticles(feeds)
+	// All articles fetched from all feeds
+	af, err := t.collectNewArticles(f)
 	if err != nil {
 		return nil, err
 	}
 
-	newArticles := []feed.Article{}
+	na := []resource.Article{}
 
 	// Compare two slices, and add new articles to the database
-	for _, a := range articlesInFeed {
-		new := !slices.ContainsFunc(articlesInDB, func(el feed.Article) bool {
-			return el.URL == a.URL
-		})
+	for _, anew := range af {
+		new := true
+
+		for _, aold := range adb {
+			if aold.Url == anew.Url {
+				new = false
+				break
+			}
+		}
 
 		if new {
-			if err := a.Write(t.db); err != nil {
+			if err := t.ar.InsertArticle(&anew); err != nil {
 				return nil, err
 			}
-			newArticles = append(newArticles, a)
+			na = append(na, resource.NewArticle(anew))
 		}
 	}
 
-	return newArticles, nil
+	return na, nil
 }
 
-// Grab all feeds from the database with their URLs
-func (t *Task) collectFeeds() ([]feed.Feed, error) {
-	rows, err := t.db.Queryx("SELECT id, url FROM subscriptions")
-	if err != nil {
-		return nil, err
-	}
-
-	feeds := []feed.Feed{}
-
-	for rows.Next() {
-		f := feed.Feed{}
-		if err := rows.StructScan(&f); err != nil {
-			return nil, err
-		}
-		feeds = append(feeds, f)
-	}
-
-	return feeds, nil
-}
-
-// Grab all articles from each feed currently in the database
-func (t *Task) collectArticles(feeds []feed.Feed) (articles []feed.Article, err error) {
+// Fetch all articles from each feed via gofeed, and put them all into one array
+func (t *Task) collectNewArticles(feeds []database.Subscription) (out []database.Article, err error) {
 	for _, f := range feeds {
-		fa, err := f.Articles(t.db)
+		gf, err := t.Parser.ParseURL(f.Url)
 		if err != nil {
 			return nil, err
 		}
 
-		articles = append(articles, fa...)
-	}
-
-	return
-}
-
-// Fetch all articles from each feed via gofeed
-func (t *Task) collectNewArticles(feeds []feed.Feed) (articles []feed.Article, err error) {
-	for _, f := range feeds {
-		gf, err := gofeed.NewParser().ParseURL(f.URL)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, ga := range gf.Items {
-			a, err := feed.NewArticleFromGofeed(ga)
-			if err != nil {
-				return nil, err
-			}
-
-			a.SubscriptionID = f.ID
-
-			articles = append(articles, *a)
+		art := resource.NewArticlesFromGofeed(gf.Items, f.ID)
+		for _, a := range art {
+			out = append(out, a.ToModel())
 		}
 	}
 

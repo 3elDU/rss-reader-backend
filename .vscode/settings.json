@@ -5,7 +5,7 @@
       "previewLimit": 50,
       "driver": "SQLite",
       "name": "sqlite",
-      "database": "${workspaceFolder:rss-reader}/database.sqlite"
+      "database": "${workspaceFolder:rss-reader}/database-debug.sqlite"
     }
   ]
 }

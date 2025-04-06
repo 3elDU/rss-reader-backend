@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/3elDU/rss-reader-backend/database"
 	"github.com/3elDU/rss-reader-backend/token"
 	"github.com/google/go-cmp/cmp"
 	"github.com/jmoiron/sqlx"
@@ -46,18 +47,15 @@ func TestExpiration(t *testing.T) {
 }
 
 func TestDatabase(t *testing.T) {
-	db := sqlx.MustOpen("sqlite", ":memory:")
-	defer db.Close()
+	godb, err := database.NewWithMigrations(":memory:", "../database/migrations")
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := sqlx.NewDb(godb, "sqlite")
+	repo := database.NewTokenRepository(db)
 
-	db.MustExec(`CREATE TABLE auth_tokens (
-		id INTEGER PRIMARY KEY ASC,
-		token TEXT NOT NULL,
-		created_at TEXT NOT NULL,
-		valid_until TEXT
-	);`)
-
-	tok := token.New(nil)
-	if err := tok.Write(db.DB); err != nil {
+	tok := token.New(nil).ToModel()
+	if err := repo.Insert(&tok); err != nil {
 		t.Fatal(err)
 	}
 
@@ -65,12 +63,12 @@ func TestDatabase(t *testing.T) {
 		t.Errorf("token id should be 1, got %v", tok.ID)
 	}
 
-	tok2, err := token.FindByString(db.DB, tok.Token)
+	tok2, err := repo.Find(tok.Token)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if diff := cmp.Diff(tok, tok2); diff != "" {
+	if diff := cmp.Diff(tok, *tok2); diff != "" {
 		t.Errorf("two token instances should be equal (-want +got):\n%v", diff)
 	}
 }

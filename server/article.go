@@ -3,14 +3,11 @@
 package server
 
 import (
-	"database/sql"
 	"encoding/json"
-	"errors"
-	"log"
 	"net/http"
 	"strconv"
 
-	"github.com/3elDU/rss-reader-backend/feed"
+	"github.com/3elDU/rss-reader-backend/resource"
 )
 
 func (s *Server) getArticles(w http.ResponseWriter, r *http.Request) error {
@@ -22,26 +19,23 @@ func (s *Server) getArticles(w http.ResponseWriter, r *http.Request) error {
 		return nil
 	}
 
-	sub, err := feed.FindByID(s.db, id)
-
-	if errors.Is(err, sql.ErrNoRows) {
-		w.WriteHeader(http.StatusNotFound)
-		return nil
-	} else if err != nil {
-		log.Printf("failed to fetch subscription from db: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return err
-	}
-
-	articles, err := sub.Articles(s.db)
+	adb, err := s.ar.ArticlesInSubscription(int64(id))
 	if err != nil {
-		log.Printf("failed to fetch articles from db: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
 		return err
 	}
 
-	encoded, _ := json.Marshal(articles)
-	w.Write(encoded)
+	sub, err := s.sr.Find(int64(id))
+	if err != nil {
+		return err
+	}
+
+	a := make([]resource.ArticleWithSubscription, len(adb))
+	for i, adb := range adb {
+		a[i] = resource.NewArticleWithSubscriptionTwopart(adb, *sub)
+	}
+
+	enc, _ := json.Marshal(a)
+	w.Write(enc)
 	return nil
 }
 
@@ -53,64 +47,35 @@ func (s *Server) getSingleArticle(w http.ResponseWriter, r *http.Request) error 
 		return nil
 	}
 
-	article, err := feed.FindArticleByID(s.db, id)
-
-	if errors.Is(err, sql.ErrNoRows) {
-		w.WriteHeader(http.StatusNotFound)
-		return nil
-	} else if err != nil {
-		log.Printf("error fetching article: %v", article)
-		w.WriteHeader(http.StatusInternalServerError)
+	am, err := s.ar.Find(int64(id))
+	if err != nil {
 		return err
 	}
 
-	encoded, _ := json.Marshal(article)
+	sm, err := s.sr.Find(am.SubscriptionId)
+	if err != nil {
+		return err
+	}
+
+	res := resource.NewArticleWithSubscriptionTwopart(*am, *sm)
+
+	encoded, _ := json.Marshal(res)
 	w.Write(encoded)
 	return nil
 }
 
 func (s *Server) getUnreadArticles(w http.ResponseWriter, r *http.Request) error {
-	rows, err := s.db.Queryx(`SELECT a.id, a.subscription_id, a.url, a.new, a.title, a.description, a.thumbnail, a.created, a.readlater, a.created_readlater, s.title
-		FROM articles a
-			INNER JOIN subscriptions s ON s.id = a.subscription_id
-			WHERE new = TRUE
-		ORDER BY a.created DESC
-	`)
+	unr, err := s.ar.Unread()
 	if err != nil {
-		log.Printf("failed to query db: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
 		return err
 	}
 
-	articles := []feed.Article{}
-	for rows.Next() {
-		a := feed.Article{
-			Subscription: &feed.Feed{},
-		}
-		if err := rows.Scan(
-			&a.ID,
-			&a.SubscriptionID,
-			&a.URL,
-			&a.New,
-			&a.Title,
-			&a.Description,
-			&a.Thumbnail,
-			&a.Created,
-			&a.ReadLater,
-			&a.AddedToReadLater,
-			&a.Subscription.Title,
-		); err != nil {
-			log.Printf("failed to scan article: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return err
-		}
-
-		a.Subscription.ID = a.SubscriptionID
-
-		articles = append(articles, a)
+	ars := make([]resource.ArticleWithSubscription, len(unr))
+	for i, m := range unr {
+		ars[i] = resource.NewArticleWithSubscription(m)
 	}
 
-	encoded, _ := json.Marshal(articles)
+	encoded, _ := json.Marshal(ars)
 	w.Write(encoded)
 	return nil
 }
@@ -122,15 +87,12 @@ func (s *Server) markArticleAsRead(w http.ResponseWriter, r *http.Request) error
 		return nil
 	}
 
-	article, err := feed.FindArticleByID(s.db, id)
+	article, err := s.ar.Find(int64(id))
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
 		return nil
 	}
 
-	if _, err := article.MarkAsRead(s.db); err != nil {
-		log.Printf("failed to mark article as read: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
+	if err := s.ar.MarkRead(article); err != nil {
 		return err
 	}
 

@@ -1,23 +1,18 @@
 package main
 
 import (
-	"database/sql"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"time"
 
+	"github.com/3elDU/rss-reader-backend/database"
 	"github.com/3elDU/rss-reader-backend/middleware"
 	"github.com/3elDU/rss-reader-backend/refresh"
 	"github.com/3elDU/rss-reader-backend/server"
 	"github.com/3elDU/rss-reader-backend/token"
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/sqlite"
 	"github.com/jmoiron/sqlx"
-
-	_ "github.com/golang-migrate/migrate/v4/source/file"
-	_ "modernc.org/sqlite"
 )
 
 var (
@@ -31,7 +26,7 @@ var (
 		"[::1]:8080",
 		"Address to listen on, with port.",
 	)
-	database = flag.String(
+	databasePath = flag.String(
 		"db",
 		"database.sqlite",
 		"Path to the database file to use.",
@@ -47,32 +42,6 @@ var (
 		"Frequency with which feeds will be updated",
 	)
 )
-
-func runMigrations() {
-	db, err := sql.Open("sqlite", *database)
-	if err != nil {
-		log.Fatalf("failed to open database: %v", err)
-	}
-	defer db.Close()
-
-	driver, err := sqlite.WithInstance(db, &sqlite.Config{})
-	if err != nil {
-		log.Fatalf("failed to create database driver for the migrations: %v", err)
-	}
-
-	m, err := migrate.NewWithDatabaseInstance(
-		"file://migrations",
-		"sqlite", driver,
-	)
-	if err != nil {
-		log.Fatalf("failed to create migrate instance: %v", err)
-	}
-
-	// Run database migrations
-	if err := m.Up(); err != nil && err.Error() != "no change" {
-		log.Fatalf("failed to apply database migrations: %v", err)
-	}
-}
 
 func main() {
 	// Show file and line number where the log originated
@@ -90,24 +59,22 @@ func main() {
 		log.Printf("*** RUNNING WITH AUTHENTICATION DISABLED ***")
 	}
 
-	runMigrations()
+	dbOrig, err := database.NewWithMigrations(*databasePath, "database/migrations")
+	if err != nil {
+		log.Fatalf("failed to apply database migrations: %v", err)
+	}
 
 	// Instantiate the database
-	db := sqlx.MustConnect("sqlite", *database)
+	db := sqlx.NewDb(dbOrig, "sqlite")
 	if !*createToken {
-		log.Printf("Connected to the database in '%v'", *database)
+		log.Printf("Connected to the database in '%v'", *databasePath)
 	}
 	defer db.Close()
 
 	if *createToken {
-		// If the duration is unset, make it nil
-		var d *time.Duration
-		if *validFor != 0 {
-			d = validFor
-		}
-
-		t := token.New(d)
-		if err := t.Write(db.DB); err != nil {
+		t := token.New(validFor).ToModel()
+		repo := database.NewTokenRepository(db)
+		if err := repo.Insert(&t); err != nil {
 			panic(err)
 		}
 		fmt.Println(t.Token)

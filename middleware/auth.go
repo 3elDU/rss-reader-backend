@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/3elDU/rss-reader-backend/database"
 	"github.com/3elDU/rss-reader-backend/token"
-	"github.com/jmoiron/sqlx"
 )
 
 var (
@@ -21,7 +21,7 @@ var (
 // Auth checks the token in the Authorization header against the provided database.
 // The token is then provided in the context value
 // If `NoAuth` is false - all checks are skipped and the dummy token is set in the context
-func Auth(db *sqlx.DB, next http.HandlerFunc) http.HandlerFunc {
+func Auth(repo database.TokenRepository, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if NoAuth {
 			request := r.WithContext(context.WithValue(
@@ -37,14 +37,14 @@ func Auth(db *sqlx.DB, next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		tokenHeader := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if tokenHeader == "" {
+		tokenStr := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if tokenStr == "" {
 			log.Printf("authentication: unauthorized")
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
-		t, err := token.FindByString(db.DB, tokenHeader)
+		tm, err := repo.Find(tokenStr)
 		if errors.Is(err, sql.ErrNoRows) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -54,10 +54,12 @@ func Auth(db *sqlx.DB, next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
+		t := token.FromModel(*tm)
+
 		// Check if the token is still valid
 		if t.Expired() {
 			log.Printf("authentication: token expired on %v", t.ValidUntil)
-			db.MustExec("DELETE FROM auth_tokens WHERE auth_tokens.id = $1", t.ID)
+			repo.Delete(*tm)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
