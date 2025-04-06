@@ -3,6 +3,7 @@ package server
 import (
 	"net/http"
 
+	"github.com/3elDU/rss-reader-backend/database"
 	"github.com/3elDU/rss-reader-backend/middleware"
 	"github.com/3elDU/rss-reader-backend/refresh"
 	"github.com/go-playground/validator/v10"
@@ -13,7 +14,10 @@ import (
 type Server struct {
 	*http.ServeMux
 
-	db     *sqlx.DB
+	tr database.TokenRepository
+	ar database.ArticleRepository
+	sr database.SubscriptionRepository
+
 	v      *validator.Validate
 	Parser *gofeed.Parser
 
@@ -23,7 +27,9 @@ type Server struct {
 func NewServer(db *sqlx.DB, refresher *refresh.Task) *Server {
 	s := &Server{
 		ServeMux: http.NewServeMux(),
-		db:       db,
+		tr:       database.NewTokenRepository(db),
+		ar:       database.NewArticleRepository(db),
+		sr:       database.NewSubscriptionRepository(db),
 		v:        validator.New(),
 		Parser:   gofeed.NewParser(),
 		r:        refresher,
@@ -36,7 +42,7 @@ func NewServer(db *sqlx.DB, refresher *refresh.Task) *Server {
 func (s *Server) registerRoutes() {
 	// Route to test that the token is valid and that the backend is working properly
 	s.Handle("GET /ping",
-		middleware.Auth(s.db, func(w http.ResponseWriter, r *http.Request) {
+		middleware.Auth(s.tr, func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/plain")
 			w.Write([]byte("pong"))
 		}),
@@ -60,7 +66,7 @@ func (s *Server) registerRoutes() {
 
 	for p, r := range routes {
 		s.Handle(p,
-			middleware.Json(middleware.Auth(s.db, middleware.Error(r))),
+			middleware.Json(middleware.Auth(s.tr, middleware.Error(r))),
 		)
 	}
 }

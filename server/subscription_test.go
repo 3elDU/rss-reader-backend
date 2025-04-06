@@ -108,7 +108,7 @@ func TestSubscriptionRoutes(t *testing.T) {
 			"/subscriptions/1/articles",
 			nil,
 			200,
-			`[{"id":1,"subscription":{"id":1,"type":"rss","url":"https://example.com/rss.xml","title":"Test Feed","description":"Test feed for testing"},"subscriptionId":1,"url":"https://example.com/test-article","new":true,"title":"Test Article","description":"Test article description","created":"2024-12-24 00:00:00","readLater":false}]`,
+			`[{"id":1,"subscriptionId":1,"new":true,"url":"https://example.com/test-article","title":"Test Article","description":"Test article description","created":"2024-12-24 00:00:00","readLater":false,"subscription":{"id":1,"type":"rss","url":"https://example.com/rss.xml","title":"Test Feed","description":"Test feed for testing"}}]`,
 		},
 		{
 			"proper 404 handling",
@@ -116,7 +116,7 @@ func TestSubscriptionRoutes(t *testing.T) {
 			"/subscribe",
 			strings.NewReader(`{"url": "https://example.com/404.xml"}`),
 			400,
-			"404 when fetching remote feed\n",
+			"{\"error\":true,\"message\":\"404 when fetching a remote feed\"}\n",
 		},
 	}
 
@@ -152,6 +152,8 @@ func TestSubscriptionRoutes(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(test.responseBody, string(body)); diff != "" {
+				t.Log(test.responseBody)
+				t.Log(string(body))
 				t.Errorf("unexpected response body (-want +got):\n%v", diff)
 			}
 		})

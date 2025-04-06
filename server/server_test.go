@@ -7,11 +7,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/3elDU/rss-reader-backend/database"
 	"github.com/3elDU/rss-reader-backend/middleware"
 	"github.com/3elDU/rss-reader-backend/server"
 	"github.com/3elDU/rss-reader-backend/token"
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/sqlite"
 	"github.com/jmoiron/sqlx"
 
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -32,21 +31,12 @@ func EnableAuthForThisTest() func() {
 }
 
 func TestMain(t *testing.M) {
-	db := sqlx.MustConnect("sqlite", ":memory:")
-	defer db.Close()
-
-	// Run database migrations
-	driver, err := sqlite.WithInstance(db.DB, &sqlite.Config{})
+	// Create an in-memory DB
+	godb, err := database.NewWithMigrations(":memory:", "../database/migrations")
 	if err != nil {
 		panic(err)
 	}
-	m, err := migrate.NewWithDatabaseInstance("file://../migrations", "sqlite", driver)
-	if err != nil {
-		panic(err)
-	}
-	if err := m.Up(); err != nil {
-		panic(err)
-	}
+	db := sqlx.NewDb(godb, "sqlite")
 
 	TestDB = db
 
@@ -78,8 +68,9 @@ func TestPingAuthorized(t *testing.T) {
 	defer EnableAuthForThisTest()()
 
 	// Create an authentication token
-	tok := token.New(nil)
-	if err := tok.Write(TestDB.DB); err != nil {
+	tok := token.New(nil).ToModel()
+	tokrepo := database.NewTokenRepository(TestDB)
+	if err := tokrepo.Insert(&tok); err != nil {
 		t.Errorf("error writing token to database: %v", err)
 	}
 

@@ -1,5 +1,5 @@
-database.sqlite
-database-debug.sqlite
+# Databases
+**/*.sqlite
 
 # Debug binary
 __debug_bin*
