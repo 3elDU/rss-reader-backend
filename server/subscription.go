@@ -54,8 +54,8 @@ func (s *Server) getSingleSubscription(w http.ResponseWriter, r *http.Request) e
 type SubscribeRequest struct {
 	URL string `json:"url" validate:"required,http_url"`
 	// Optional title and description which override those from the feed
-	Title       string
-	Description string
+	Title       string `json:"title"`
+	Description string `json:"description"`
 }
 
 func (s *Server) subscribe(w http.ResponseWriter, r *http.Request) error {
@@ -107,10 +107,9 @@ func (s *Server) subscribe(w http.ResponseWriter, r *http.Request) error {
 
 	sr := resource.NewSubscriptionFromGofeed(*gf)
 
-	// In some feeds there's no feedLink property
-	if sr.Url == "" {
-		sr.Url = url
-	}
+	// Some feeds return an empty url, or an invalid one
+	// Overwrite the URL to the one pointing at the actual feed
+	sr.Url = url
 
 	// Override title and description with those from the request, if they are set
 	if body.Title != "" {
@@ -162,6 +161,9 @@ func (s *Server) fetchFeedInfo(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	res := resource.NewSubscriptionFromGofeed(*f)
+	// Some feeds return an empty url, or an invalid one
+	// Overwrite the URL to the one pointing at the actual feed
+	res.Url = feedUrl
 
 	// Check if feed with the specified URL already exists in the database
 	if exists, id, err := s.sr.SubscriptionExists(f.Link); err == nil && exists {
