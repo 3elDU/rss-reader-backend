@@ -10,11 +10,7 @@
       "request": "launch",
       "mode": "auto",
       "program": "${workspaceFolder}",
-      "args": [
-        "-db",
-        "database-debug.sqlite",
-        "-noauth"
-      ],
+      "args": ["-db", "database-debug.sqlite", "-noauth"]
     },
     {
       "name": "Debug (listen on 0.0.0.0)",
@@ -27,8 +23,22 @@
         "database-debug.sqlite",
         "-noauth",
         "-listen",
-        "0.0.0.0:8080",
-      ],
+        "0.0.0.0:8080"
+      ]
+    },
+    {
+      "name": "Debug (listen on tailscale)",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}",
+      "args": [
+        "-db",
+        "database-debug.sqlite",
+        "-noauth",
+        "-listen",
+        "100.64.0.1:8080"
+      ]
     }
   ]
 }
