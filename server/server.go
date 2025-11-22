@@ -42,31 +42,41 @@ func NewServer(db *sqlx.DB, refresher *refresh.Task) *Server {
 func (s *Server) registerRoutes() {
 	// Route to test that the token is valid and that the backend is working properly
 	s.Handle("GET /ping",
-		middleware.Auth(s.tr, func(w http.ResponseWriter, r *http.Request) {
+		middleware.Auth(s.tr, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/plain")
 			w.Write([]byte("pong"))
-		}),
+		})),
 	)
 
-	// All those routes use the same set of middlewares (auth + json response)
-	routes := map[string]middleware.ErrorHandler{
-		"GET /subscriptions/{id}":          s.getSingleSubscription,
-		"GET /subscriptions":               s.getSubscriptions,
-		"GET /feedinfo":                    s.fetchFeedInfo,
-		"POST /subscribe":                  s.subscribe,
-		"GET /subscriptions/{id}/articles": s.getArticles,
-		"GET /articles/{id}":               s.getSingleArticle,
-		"POST /articles/{id}/markread":     s.markArticleAsRead,
-		"POST /articles/{id}/readlater":    s.addToReadLater,
-		"DELETE /articles/{id}/readlater":  s.removeFromReadLater,
-		"GET /readlater":                   s.showReadLater,
-		"GET /unread":                      s.getUnreadArticles,
-		"POST /refresh":                    s.refresh,
+	// All those rts use the same set of middlewares (auth + json response)
+	rts := map[string]middleware.ErrorHandler{
+		"GET /subscriptions/{id}":         s.getSingleSubscription,
+		"GET /feedinfo":                   s.fetchFeedInfo,
+		"POST /subscribe":                 s.subscribe,
+		"GET /articles/{id}":              s.getSingleArticle,
+		"POST /articles/{id}/markread":    s.markArticleAsRead,
+		"POST /articles/{id}/readlater":   s.addToReadLater,
+		"DELETE /articles/{id}/readlater": s.removeFromReadLater,
+		"POST /refresh":                   s.refresh,
 	}
 
-	for p, r := range routes {
+	// Routes with pagination
+	pgr := map[string]middleware.ErrorHandler{
+		"GET /subscriptions":               s.getSubscriptions,
+		"GET /subscriptions/{id}/articles": s.getArticles,
+		"GET /readlater":                   s.showReadLater,
+		"GET /unread":                      s.getUnreadArticles,
+	}
+
+	for p, r := range rts {
 		s.Handle(p,
 			middleware.Json(middleware.Auth(s.tr, middleware.Error(r))),
+		)
+	}
+
+	for p, r := range pgr {
+		s.Handle(p,
+			middleware.Json(middleware.Auth(s.tr, middleware.WithPagination(middleware.Error(r)))),
 		)
 	}
 }

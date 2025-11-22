@@ -70,8 +70,11 @@ func (r ArticleRepository) Find(id int64) (*Article, error) {
 	return a, nil
 }
 
-func (r ArticleRepository) Unread() (out []ArticleWithSubscription, err error) {
-	res, err := r.db.Queryx(articleJoinQuery + " WHERE new = TRUE")
+func (r ArticleRepository) Unread(limit int, offset int) (out []ArticleWithSubscription, err error) {
+	res, err := r.db.Queryx(
+		articleJoinQuery+" WHERE new = TRUE LIMIT ? OFFSET ?",
+		limit, offset,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -105,12 +108,13 @@ func (r ArticleRepository) Exists(url string) (exists bool, err error) {
 }
 
 // ArticlesInSubscription fetches all the articles that belong to the subscription with the specified id.
-func (r ArticleRepository) ArticlesInSubscription(id int64) ([]Article, error) {
+func (r ArticleRepository) ArticlesInSubscription(id int64, limit int, offset int) ([]Article, error) {
 	rows, err := r.db.Queryx(`SELECT *
 		FROM articles
 		WHERE articles.subscription_id = ?
-		ORDER BY articles.created DESC`,
-		id,
+		ORDER BY articles.created DESC
+		LIMIT ? OFFSET ?`,
+		id, limit, offset,
 	)
 	if err != nil {
 		return nil, err
@@ -129,8 +133,11 @@ func (r ArticleRepository) ArticlesInSubscription(id int64) ([]Article, error) {
 }
 
 // InReadLater returns all articles flagged as read later
-func (r ArticleRepository) InReadLater() ([]ArticleWithSubscription, error) {
-	rows, err := r.db.Queryx(articleJoinQuery + " WHERE readlater = TRUE")
+func (r ArticleRepository) InReadLater(limit int, offset int) ([]ArticleWithSubscription, error) {
+	rows, err := r.db.Queryx(
+		articleJoinQuery+" WHERE readlater = TRUE LIMIT ? OFFSET ?",
+		limit, offset,
+	)
 	if err != nil {
 		return nil, err
 	}

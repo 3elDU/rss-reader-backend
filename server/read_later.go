@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/3elDU/rss-reader-backend/middleware"
 	"github.com/3elDU/rss-reader-backend/resource"
 )
 
@@ -48,7 +49,9 @@ func (s *Server) removeFromReadLater(w http.ResponseWriter, r *http.Request) err
 }
 
 func (s *Server) showReadLater(w http.ResponseWriter, r *http.Request) error {
-	arl, err := s.ar.InReadLater()
+	pg := middleware.GetPagination(r.Context())
+
+	arl, err := s.ar.InReadLater(pg.Limit, pg.Offset)
 	if err != nil {
 		return err
 	}

@@ -21,10 +21,10 @@ var (
 // Auth checks the token in the Authorization header against the provided database.
 // The token is then provided in the context value
 // If `NoAuth` is false - all checks are skipped and the dummy token is set in the context
-func Auth(repo database.TokenRepository, next http.HandlerFunc) http.HandlerFunc {
+func Auth(repo database.TokenRepository, next http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if NoAuth {
-			request := r.WithContext(context.WithValue(
+			r2 := r.WithContext(context.WithValue(
 				r.Context(),
 				token.TokenContextKey,
 				token.Token{
@@ -33,7 +33,7 @@ func Auth(repo database.TokenRepository, next http.HandlerFunc) http.HandlerFunc
 					CreatedAt: time.Now(),
 				},
 			))
-			next(w, request)
+			next.ServeHTTP(w, r2)
 			return
 		}
 
@@ -64,11 +64,11 @@ func Auth(repo database.TokenRepository, next http.HandlerFunc) http.HandlerFunc
 			return
 		}
 
-		request := r.WithContext(context.WithValue(
+		r2 := r.WithContext(context.WithValue(
 			r.Context(),
 			token.TokenContextKey,
 			t,
 		))
-		next(w, request)
+		next.ServeHTTP(w, r2)
 	}
 }

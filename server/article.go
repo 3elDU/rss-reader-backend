@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/3elDU/rss-reader-backend/middleware"
 	"github.com/3elDU/rss-reader-backend/resource"
 )
 
@@ -19,7 +20,9 @@ func (s *Server) getArticles(w http.ResponseWriter, r *http.Request) error {
 		return nil
 	}
 
-	adb, err := s.ar.ArticlesInSubscription(int64(id))
+	pg := middleware.GetPagination(r.Context())
+
+	adb, err := s.ar.ArticlesInSubscription(int64(id), pg.Limit, pg.Offset)
 	if err != nil {
 		return err
 	}
@@ -65,7 +68,9 @@ func (s *Server) getSingleArticle(w http.ResponseWriter, r *http.Request) error 
 }
 
 func (s *Server) getUnreadArticles(w http.ResponseWriter, r *http.Request) error {
-	unr, err := s.ar.Unread()
+	pg := middleware.GetPagination(r.Context())
+
+	unr, err := s.ar.Unread(pg.Limit, pg.Offset)
 	if err != nil {
 		return err
 	}
