@@ -1,5 +1,8 @@
 # RSS reader
 
+> # Deprecation notice
+> The app is local-first now. No backend is used. As such, this repository is archived.
+
 This is the backend for my personal RSS reader project.
 
 It uses `gofeed` library under the hood to parse the feeds and sqlite as the database.
